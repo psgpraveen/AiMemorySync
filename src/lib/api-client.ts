@@ -399,4 +399,24 @@ export async function testIntegration(
   });
 }
 
+export interface SignupPayload {
+  workspaceName: string;
+  primaryPlatform?: string;
+}
+
+export interface SignupResponse {
+  message: string;
+  apiKey: ApiKeyDto;
+  rawKey: string;
+  workspaceName: string;
+}
+
+export async function signupWorkspace(payload: SignupPayload): Promise<SignupResponse> {
+  return request<SignupResponse>("/api/auth/signup", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+
 

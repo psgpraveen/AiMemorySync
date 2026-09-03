@@ -1,5 +1,6 @@
 "use client";
 
+// Antigravity IDE Integration Setup Wizard
 import { useState, useEffect, startTransition } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/shared/navbar";

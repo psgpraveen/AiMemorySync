@@ -2,30 +2,37 @@
   "name": "aimemory-vscode",
   "displayName": "AiMemorySync",
   "description": "Automatic AI project memory — resolves your workspace, fetches relevant context, and lets you manage memories directly in VS Code.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "aimemory",
   "author": "PSG Praveen (@psgpraveen)",
   "license": "MIT",
+  "icon": "media/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/aimemory/aimemorysync.git"
+    "url": "https://github.com/psgpraveen/AiMemorySync.git"
   },
+  "homepage": "https://github.com/psgpraveen/AiMemorySync#readme",
   "bugs": {
-    "url": "https://github.com/aimemory/aimemorysync/issues"
+    "url": "https://github.com/psgpraveen/AiMemorySync/issues"
   },
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
     "AI",
+    "Machine Learning",
+    "Programming Languages",
     "Other"
   ],
   "keywords": [
-    "ai",
+    "aimemory",
     "memory",
     "context",
+    "mcp",
+    "ai",
     "copilot",
-    "project"
+    "antigravity",
+    "cursor"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -232,13 +239,19 @@
   "scripts": {
     "build": "tsup",
     "watch": "tsup --watch",
+    "clean": "npx tsx scripts/package-release.ts --clean-only",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "npx tsx test/unit/run-unit-tests.ts",
     "test:integration": "npx tsx test/integration/run-integration-tests.ts",
     "test:e2e": "npx tsx test/e2e/runTest.ts",
-    "lint": "eslint src --ext .ts",
-    "package": "npm run build && npx vsce package --no-dependencies"
+    "package": "npx tsx scripts/package-release.ts --skip-tests --force",
+    "package:extension": "npx tsx scripts/package-release.ts",
+    "package:extension:clean": "npm run clean && npm run package:extension",
+    "version:patch": "npm version patch --no-git-tag-version",
+    "version:minor": "npm version minor --no-git-tag-version",
+    "version:major": "npm version major --no-git-tag-version"
   },
   "dependencies": {
     "@aimemory/client-core": "*"

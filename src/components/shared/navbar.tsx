@@ -56,7 +56,15 @@ export function Navbar() {
     setCurrentKey("");
     setInputKey("");
     setIsKeyModalOpen(false);
-    window.location.reload();
+    window.location.href = "/login?loggedOut=true";
+  }
+
+  function handleLogout() {
+    setApiKey(null);
+    setCurrentKey("");
+    setInputKey("");
+    setKeyStatus("none");
+    window.location.href = "/login?loggedOut=true";
   }
 
   return (
@@ -126,12 +134,46 @@ export function Navbar() {
               </span>
             </button>
 
-            {keyStatus !== "valid" && (
+            {keyStatus === "valid" ? (
+              <button
+                onClick={handleLogout}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50/50 transition shadow-2xs"
+                title="Log out of current workspace"
+              >
+                <svg
+                  className="h-3.5 w-3.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                <span>Log Out</span>
+              </button>
+            ) : (
               <Link
                 href="/login"
-                className="rounded-lg bg-linear-to-r from-indigo-600 to-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:from-indigo-500 hover:to-violet-500 transition shadow-xs"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-linear-to-r from-indigo-600 to-violet-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:from-indigo-500 hover:to-violet-500 transition shadow-xs"
               >
-                Connect
+                <svg
+                  className="h-3.5 w-3.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                  <polyline points="10 17 15 12 10 7" />
+                  <line x1="15" y1="12" x2="3" y2="12" />
+                </svg>
+                <span>Sign In</span>
               </Link>
             )}
           </div>

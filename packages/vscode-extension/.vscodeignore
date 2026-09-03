@@ -2,7 +2,10 @@
 .vscode-test/**
 src/**
 test/**
+scripts/**
 scratch/**
+releases/**
+eslint.config.mjs
 tsconfig.json
 tsup.config.ts
 *.vsix

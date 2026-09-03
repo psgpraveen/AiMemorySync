@@ -1,0 +1,76 @@
+name: Release AiMemorySync VS Code Extension
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+      - "extension-v*.*.*"
+  workflow_dispatch:
+    inputs:
+      publish_to_openvsx:
+        description: "Publish to Open VSX Registry (requires OVX_PAT secret)"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-and-package:
+    name: Validate, Test & Package VSIX
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Typecheck Monorepo & Extension
+        run: |
+          npm run typecheck:extension
+
+      - name: Lint Extension Codebase
+        run: |
+          npm run --workspace=aimemory-vscode lint
+
+      - name: Run Extension Unit & Integration Tests
+        run: |
+          npm run test:extension
+
+      - name: Package Extension VSIX
+        run: |
+          npm run package:extension
+
+      - name: Archive Packaged VSIX Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aimemory-vscode-vsix
+          path: packages/vscode-extension/releases/*.vsix
+          retention-days: 30
+
+      # ------------------------------------------------------------------------
+      # Open VSX Publishing Step
+      # NOTE: This step is disabled by default until the publisher account and
+      # OVX_PAT repository secret are configured.
+      # To enable: Set GitHub Secret "OVX_PAT" and dispatch with publish=true.
+      # ------------------------------------------------------------------------
+      - name: Publish to Open VSX Registry
+        if: ${{ inputs.publish_to_openvsx == true }}
+        env:
+          OPENVSX_TOKEN: ${{ secrets.OVX_PAT }}
+        run: |
+          if [ -z "$OPENVSX_TOKEN" ]; then
+            echo "ERROR: OVX_PAT secret is missing. Cannot publish to Open VSX."
+            exit 1
+          fi
+          npx ovsx publish packages/vscode-extension/releases/*.vsix -p "$OPENVSX_TOKEN"
