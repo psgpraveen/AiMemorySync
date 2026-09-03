@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Universal Model Context Protocol (MCP) server for AiMemorySync",
+  "author": "PSG Praveen (@psgpraveen)",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
@@ -26,7 +27,6 @@
     "cursor",
     "chatgpt"
   ],
-  "author": "Antigravity Team",
   "license": "MIT",
   "dependencies": {
     "@aimemory/client-core": "*",

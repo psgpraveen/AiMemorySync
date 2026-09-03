@@ -3,6 +3,7 @@
 import { useState, useEffect, startTransition } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/shared/navbar";
+import { Footer } from "@/components/shared/footer";
 import { CodeBlock } from "@/components/integrations/code-block";
 import {
   getApiKey,
@@ -163,7 +164,7 @@ export default function AntigravitySetupWizardPage() {
   ];
 
   return (
-    <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-zinc-950">
+    <div className="flex min-h-screen flex-col bg-white mesh-gradient-bg text-slate-900 transition-colors">
       <Navbar />
 
       <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-10 sm:px-6">
@@ -635,6 +636,7 @@ export default function AntigravitySetupWizardPage() {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 }

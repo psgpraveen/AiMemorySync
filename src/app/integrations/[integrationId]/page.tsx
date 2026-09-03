@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Navbar } from "@/components/shared/navbar";
+import { Footer } from "@/components/shared/footer";
 import { getIntegrationById } from "@/lib/integrations/registry";
 import { CodeBlock } from "@/components/integrations/code-block";
 
@@ -21,10 +22,10 @@ export default async function IntegrationDetailPage({ params }: PageProps) {
   const isAvailable = integration.status === "available";
 
   return (
-    <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-zinc-950">
+    <div className="flex min-h-screen flex-col bg-white mesh-gradient-bg text-slate-900 transition-colors">
       <Navbar />
 
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-10 sm:px-6">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
           <Link href="/integrations" className="hover:text-zinc-900 dark:hover:text-zinc-100">
@@ -179,6 +180,7 @@ export default async function IntegrationDetailPage({ params }: PageProps) {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 }

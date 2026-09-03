@@ -68,18 +68,18 @@ export function ProjectList() {
   return (
     <div className="space-y-6">
       {/* Header section */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Projects
           </h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Manage your synchronized AI memory projects.
+          <p className="text-xs text-slate-500 mt-0.5">
+            Manage your synchronized AI memory projects across all development environments.
           </p>
         </div>
         <button
           onClick={() => setIsCreateOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded bg-zinc-900 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-linear-to-r from-indigo-600 to-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:from-indigo-500 hover:to-violet-500 transition-all hover:scale-[1.02]"
         >
           <svg
             className="h-3.5 w-3.5"

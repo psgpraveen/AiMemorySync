@@ -1,6 +1,8 @@
 {
   "name": "aimemorysync",
   "version": "0.1.0",
+  "description": "Shared AI memory and context synchronization across AI platforms",
+  "author": "PSG Praveen (@psgpraveen)",
   "private": true,
   "workspaces": [
     "packages/*"

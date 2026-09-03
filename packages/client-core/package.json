@@ -2,6 +2,7 @@
   "name": "@aimemory/client-core",
   "version": "0.1.0",
   "description": "Platform-independent client SDK for AiMemorySync",
+  "author": "PSG Praveen (@psgpraveen)",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -35,7 +36,6 @@
     "sdk",
     "agentic"
   ],
-  "author": "Antigravity Team",
   "license": "MIT",
   "dependencies": {},
   "devDependencies": {

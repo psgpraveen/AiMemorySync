@@ -61,64 +61,79 @@ export function Navbar() {
 
   return (
     <>
-      <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-md shadow-2xs">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-6">
             <Link
-              href="/projects"
-              className="flex items-center gap-2 font-mono text-base font-bold tracking-tight text-zinc-900 hover:opacity-90 dark:text-zinc-50"
+              href="/"
+              className="flex items-center gap-2.5 font-sans text-sm font-bold tracking-tight text-slate-900 hover:opacity-90 group"
             >
-              <span className="flex h-6 w-6 items-center justify-center rounded bg-zinc-900 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-linear-to-tr from-indigo-600 via-indigo-500 to-violet-500 text-xs font-bold text-white shadow-xs group-hover:scale-105 transition-transform">
                 M
               </span>
-              <span>AiMemorySync</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-semibold text-base tracking-tight text-slate-900">
+                  AiMemory<span className="text-indigo-600">Sync</span>
+                </span>
+                <span className="hidden md:inline-flex items-center rounded-full bg-slate-100 border border-slate-200/60 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                  by psgpraveen
+                </span>
+              </div>
             </Link>
-            <nav className="flex items-center gap-4 text-sm font-medium">
+
+            <nav className="flex items-center gap-1 sm:gap-2 text-xs font-medium">
               <Link
                 href="/projects"
-                className="text-zinc-600 transition-colors hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
+                className="rounded-lg px-3 py-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-950"
               >
                 Projects
               </Link>
               <Link
                 href="/integrations"
-                className="text-zinc-600 transition-colors hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
+                className="rounded-lg px-3 py-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-950"
               >
                 Integrations
               </Link>
               <Link
                 href="/settings/api-keys"
-                className="text-zinc-600 transition-colors hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
+                className="rounded-lg px-3 py-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-950"
               >
                 API Keys
               </Link>
             </nav>
           </div>
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => setIsKeyModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 transition"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition shadow-2xs"
             >
               <span
                 className={`h-2 w-2 rounded-full ${
                   keyStatus === "valid"
-                    ? "bg-emerald-500"
+                    ? "bg-emerald-500 shadow-xs shadow-emerald-500/50"
                     : keyStatus === "invalid"
                     ? "bg-red-500 animate-pulse"
                     : "bg-amber-500"
                 }`}
               />
-              {keyStatus === "valid"
-                ? "API Key Active"
-                : keyStatus === "invalid"
-                ? "Invalid API Key"
-                : "Set API Key"}
+              <span className="hidden sm:inline">
+                {keyStatus === "valid"
+                  ? "API Key Active"
+                  : keyStatus === "invalid"
+                  ? "Invalid API Key"
+                  : "Set API Key"}
+              </span>
             </button>
 
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400" />
-              Active
-            </span>
+            {keyStatus !== "valid" && (
+              <Link
+                href="/login"
+                className="rounded-lg bg-linear-to-r from-indigo-600 to-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:from-indigo-500 hover:to-violet-500 transition shadow-xs"
+              >
+                Connect
+              </Link>
+            )}
           </div>
         </div>
       </header>

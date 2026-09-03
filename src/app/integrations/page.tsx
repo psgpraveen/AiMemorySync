@@ -3,6 +3,7 @@
 import { useState, useEffect, startTransition } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/shared/navbar";
+import { Footer } from "@/components/shared/footer";
 import { IntegrationCard } from "@/components/integrations/integration-card";
 import { getAllIntegrations } from "@/lib/integrations/registry";
 import { getApiKey, verifyApiKey } from "@/lib/api-client";
@@ -39,20 +40,20 @@ export default function IntegrationsDashboardPage() {
       : allIntegrations.filter((item) => item.category === selectedCategory);
 
   return (
-    <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-zinc-950">
+    <div className="flex min-h-screen flex-col bg-white mesh-gradient-bg text-slate-900 transition-colors">
       <Navbar />
 
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-10 sm:px-6">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
         {/* Header banner */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200 pb-6 dark:border-zinc-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-6">
           <div>
-            <div className="inline-flex items-center gap-1.5 rounded bg-zinc-100 px-2 py-0.5 font-mono text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 mb-2">
-              Phase 5C.2 &bull; Platform Ecosystem
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50/80 px-2.5 py-0.5 font-mono text-[11px] text-indigo-700 mb-2 font-medium">
+              Platform Ecosystem &bull; Universal MCP Ready
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-3xl">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
               Integrations & AI Clients
             </h1>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            <p className="mt-1 text-sm text-slate-500">
               Connect persistent project memory to Antigravity, VS Code, Cursor, and future AI agents.
             </p>
           </div>
@@ -109,10 +110,10 @@ export default function IntegrationsDashboardPage() {
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`rounded-full px-3.5 py-1 text-xs font-medium transition ${
+              className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
                 selectedCategory === cat.id
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+                  ? "bg-linear-to-r from-indigo-600 to-violet-600 text-white shadow-xs"
+                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               }`}
             >
               {cat.label}
@@ -131,6 +132,7 @@ export default function IntegrationsDashboardPage() {
           ))}
         </div>
       </main>
+      <Footer />
     </div>
   );
 }
