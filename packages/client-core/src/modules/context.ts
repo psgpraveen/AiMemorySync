@@ -2,6 +2,16 @@ import type { HttpClient } from "../transport/http-client.js";
 import type { CacheAdapter } from "../adapters/cache.js";
 import type { ContextOptions, AssembledContextResult } from "../types/index.js";
 
+interface BackendContextResponse {
+  projectId: string;
+  projectName: string;
+  context: string;
+  includedMemoryCount: number;
+  excludedMemoryCount: number;
+  budget: number;
+  usedCharacters: number;
+}
+
 export class ContextModule {
   constructor(
     private readonly http: HttpClient,
@@ -16,7 +26,6 @@ export class ContextModule {
     const typesKey = options?.types ? [...options.types].sort().join(",") : "ALL";
     const cacheKey = `context:${projectId}:${budget}:${typesKey}`;
 
-
     const cached = await this.cache.get<AssembledContextResult>(cacheKey);
     if (cached) return cached;
 
@@ -26,13 +35,26 @@ export class ContextModule {
       query.types = options.types.join(",");
     }
 
-    const result = await this.http.request<AssembledContextResult>(
+    const raw = await this.http.request<BackendContextResponse>(
       `/api/projects/${encodeURIComponent(projectId)}/context`,
       {
         method: "GET",
         query,
       }
     );
+
+    const result: AssembledContextResult = {
+      projectId: raw.projectId,
+      projectName: raw.projectName,
+      markdown: raw.context ?? "",
+      budget: {
+        requested: raw.budget ?? budget,
+        usedCharacters: raw.usedCharacters ?? 0,
+        remainingCharacters: Math.max(0, (raw.budget ?? budget) - (raw.usedCharacters ?? 0)),
+        itemCount: raw.includedMemoryCount ?? 0,
+      },
+      includedMemories: [],
+    };
 
     await this.cache.set(cacheKey, result, { ttlMs: 15000 }); // 15s cache
     return result;

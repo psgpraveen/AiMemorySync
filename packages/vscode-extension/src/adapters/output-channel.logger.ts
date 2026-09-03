@@ -74,10 +74,19 @@ export class OutputChannelLogger implements LoggerAdapter {
 
   /** Strips any accidental sensitive fields from metadata before logging */
   private sanitize(metadata: SafeLogMetadata): SafeLogMetadata {
-    const forbidden = new Set(["authorization", "apiKey", "api_key", "token", "password", "secret"]);
+    const forbiddenSubstrings = ["key", "secret", "token", "password", "auth"];
     const sanitized: SafeLogMetadata = {};
     for (const [key, value] of Object.entries(metadata)) {
-      if (forbidden.has(key.toLowerCase())) continue;
+      const lower = key.toLowerCase();
+      // Keep safe diagnostic fields explicitly allowed
+      if (lower === "safeStatus" || lower === "method" || lower === "url" || lower === "status" || lower === "durationms" || lower === "retrycount" || lower === "platform" || lower === "clientid" || lower === "projectid" || lower === "memoryid") {
+        sanitized[key] = value;
+        continue;
+      }
+      // Strip any key that contains sensitive keywords
+      if (forbiddenSubstrings.some((sub) => lower.includes(sub))) {
+        continue;
+      }
       sanitized[key] = value;
     }
     return sanitized;

@@ -118,8 +118,13 @@ export class MemoriesModule {
   }
 
   private async invalidateProjectMemories(projectId: string): Promise<void> {
-    // Clear project context cache and memory list caches
-    await this.cache.delete(`context:${projectId}:default`);
+    if (this.cache.deletePrefix) {
+      await this.cache.deletePrefix(`memories:${projectId}:`);
+      await this.cache.deletePrefix(`context:${projectId}:`);
+    } else {
+      await this.cache.delete(`context:${projectId}:default`);
+    }
     this.events.emit("context:updated", { projectId });
   }
 }
+

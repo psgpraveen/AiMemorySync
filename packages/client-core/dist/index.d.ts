@@ -35,6 +35,7 @@ interface CacheAdapter {
     get<T>(key: string): Promise<T | null>;
     set<T>(key: string, value: T, options?: CacheOptions): Promise<void>;
     delete(key: string): Promise<void>;
+    deletePrefix?(prefix: string): Promise<void>;
     clear(): Promise<void>;
 }
 /**
@@ -47,6 +48,7 @@ declare class InMemoryCache implements CacheAdapter {
     get<T>(key: string): Promise<T | null>;
     set<T>(key: string, value: T, options?: CacheOptions): Promise<void>;
     delete(key: string): Promise<void>;
+    deletePrefix(prefix: string): Promise<void>;
     clear(): Promise<void>;
 }
 

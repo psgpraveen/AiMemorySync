@@ -12,6 +12,7 @@
     "build:extension": "npm run --workspace=aimemory-vscode build",
     "typecheck:extension": "npm run --workspace=aimemory-vscode typecheck",
     "watch:extension": "npm run --workspace=aimemory-vscode watch",
+    "test:extension": "npm run --workspace=aimemory-vscode test",
     "test:sdk": "npm run --workspace=@aimemory/client-core test",
     "start": "next start",
     "lint": "eslint",

@@ -115,8 +115,12 @@ export class ProjectsModule {
   }
 
   private async invalidateListCache(): Promise<void> {
-    await this.cache.delete("projects:list:ALL");
-    await this.cache.delete("projects:list:ACTIVE");
-    await this.cache.delete("projects:list:ARCHIVED");
+    if (this.cache.deletePrefix) {
+      await this.cache.deletePrefix("projects:list:");
+    } else {
+      await this.cache.delete("projects:list:ALL");
+      await this.cache.delete("projects:list:ACTIVE");
+      await this.cache.delete("projects:list:ARCHIVED");
+    }
   }
 }

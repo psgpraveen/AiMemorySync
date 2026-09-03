@@ -44,6 +44,13 @@ var InMemoryCache = class {
   async delete(key) {
     this.store.delete(key);
   }
+  async deletePrefix(prefix) {
+    for (const key of Array.from(this.store.keys())) {
+      if (key.startsWith(prefix)) {
+        this.store.delete(key);
+      }
+    }
+  }
   async clear() {
     this.store.clear();
   }
@@ -626,9 +633,13 @@ var ProjectsModule = class {
     return project;
   }
   async invalidateListCache() {
-    await this.cache.delete("projects:list:ALL");
-    await this.cache.delete("projects:list:ACTIVE");
-    await this.cache.delete("projects:list:ARCHIVED");
+    if (this.cache.deletePrefix) {
+      await this.cache.deletePrefix("projects:list:");
+    } else {
+      await this.cache.delete("projects:list:ALL");
+      await this.cache.delete("projects:list:ACTIVE");
+      await this.cache.delete("projects:list:ARCHIVED");
+    }
   }
 };
 
@@ -730,7 +741,12 @@ var MemoriesModule = class {
     return memory;
   }
   async invalidateProjectMemories(projectId) {
-    await this.cache.delete(`context:${projectId}:default`);
+    if (this.cache.deletePrefix) {
+      await this.cache.deletePrefix(`memories:${projectId}:`);
+      await this.cache.deletePrefix(`context:${projectId}:`);
+    } else {
+      await this.cache.delete(`context:${projectId}:default`);
+    }
     this.events.emit("context:updated", { projectId });
   }
 };
@@ -757,13 +773,25 @@ var ContextModule = class {
     if (options?.types && options.types.length > 0) {
       query.types = options.types.join(",");
     }
-    const result = await this.http.request(
+    const raw = await this.http.request(
       `/api/projects/${encodeURIComponent(projectId)}/context`,
       {
         method: "GET",
         query
       }
     );
+    const result = {
+      projectId: raw.projectId,
+      projectName: raw.projectName,
+      markdown: raw.context ?? "",
+      budget: {
+        requested: raw.budget ?? budget,
+        usedCharacters: raw.usedCharacters ?? 0,
+        remainingCharacters: Math.max(0, (raw.budget ?? budget) - (raw.usedCharacters ?? 0)),
+        itemCount: raw.includedMemoryCount ?? 0
+      },
+      includedMemories: []
+    };
     await this.cache.set(cacheKey, result, { ttlMs: 15e3 });
     return result;
   }

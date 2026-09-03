@@ -9,30 +9,57 @@ import * as path from "path";
  * - Strips credentials (username:password@) from remote URLs before returning.
  * - Raw local filesystem paths are NEVER transmitted in network payloads.
  */
-export async function detectGitRemoteUrl(workspacePath: string): Promise<string | null> {
-  // Try .git/config first (fast, no shell required)
-  const gitConfigPath = path.join(workspacePath, ".git", "config");
+function resolveGitDir(targetPath: string): string | null {
+  const gitEntry = path.join(targetPath, ".git");
   try {
-    const content = fs.readFileSync(gitConfigPath, "utf-8");
-    const url = parseGitRemoteUrl(content);
-    if (url) return sanitizeGitUrl(url);
+    const stat = fs.statSync(gitEntry);
+    if (stat.isDirectory()) {
+      return gitEntry;
+    }
+    if (stat.isFile()) {
+      // Handle git worktree or submodule where .git is a file containing "gitdir: <path>"
+      const content = fs.readFileSync(gitEntry, "utf-8");
+      const match = content.match(/^\s*gitdir:\s*(.+)$/m);
+      if (match) {
+        return path.resolve(targetPath, match[1].trim());
+      }
+    }
   } catch {
-    // .git/config not readable — folder may not be a git repo or is a worktree
+    // .git not present
   }
+  return null;
+}
 
-  // Fallback: try parent directories up to 3 levels (covers monorepo subprojects)
-  let dir = workspacePath;
-  for (let i = 0; i < 3; i++) {
-    const parent = path.dirname(dir);
-    if (parent === dir) break; // reached filesystem root
-    dir = parent;
-    const parentGitConfig = path.join(dir, ".git", "config");
+export async function detectGitRemoteUrl(workspacePath: string): Promise<string | null> {
+  // Try current directory first (supports both .git folder and worktree file)
+  const directGitDir = resolveGitDir(workspacePath);
+  if (directGitDir) {
     try {
-      const content = fs.readFileSync(parentGitConfig, "utf-8");
+      const gitConfigPath = path.join(directGitDir, "config");
+      const content = fs.readFileSync(gitConfigPath, "utf-8");
       const url = parseGitRemoteUrl(content);
       if (url) return sanitizeGitUrl(url);
     } catch {
-      // continue
+      // config unreadable
+    }
+  }
+
+  // Fallback: try parent directories up to 4 levels (covers monorepo subprojects)
+  let dir = workspacePath;
+  for (let i = 0; i < 4; i++) {
+    const parent = path.dirname(dir);
+    if (parent === dir) break; // reached filesystem root
+    dir = parent;
+    const parentGitDir = resolveGitDir(dir);
+    if (parentGitDir) {
+      try {
+        const parentGitConfig = path.join(parentGitDir, "config");
+        const content = fs.readFileSync(parentGitConfig, "utf-8");
+        const url = parseGitRemoteUrl(content);
+        if (url) return sanitizeGitUrl(url);
+      } catch {
+        // continue
+      }
     }
   }
 
@@ -44,19 +71,21 @@ export async function detectGitRemoteUrl(workspacePath: string): Promise<string 
  * Returns null if the workspace IS the Git root, or if no Git root is found.
  */
 export function detectMonorepoSubPath(workspacePath: string): string | null {
+  // If the workspace folder itself is a Git repository, it is NOT a monorepo subproject
+  if (resolveGitDir(workspacePath)) {
+    return null;
+  }
+
   let dir = workspacePath;
   for (let i = 0; i < 5; i++) {
     const parent = path.dirname(dir);
     if (parent === dir) break;
-    const parentGitDir = path.join(parent, ".git");
-    try {
-      fs.statSync(parentGitDir);
+    if (resolveGitDir(parent)) {
       // Parent has .git — workspacePath is a subproject
       const subPath = path.relative(parent, workspacePath).replace(/\\/g, "/");
       return subPath || null;
-    } catch {
-      dir = parent;
     }
+    dir = parent;
   }
   return null;
 }

@@ -50,7 +50,7 @@ export const CONFIG = {
 // -----------------------------------------------------------------
 export const SECRETS = {
   /** API key for authenticating with AiMemorySync backend. NEVER put this in settings.json. */
-  API_KEY: "aimemory.apiKey",
+  API_KEY: "aimemory_api_key",
 } as const;
 
 // -----------------------------------------------------------------
