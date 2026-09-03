@@ -1,0 +1,136 @@
+// Prisma schema for AiMemorySync
+// Architecture Reference: docs/DATA_MODEL.md
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum MemoryType {
+  DECISION
+  REQUIREMENT
+  CONVENTION
+  BUG_SOLUTION
+}
+
+enum MemoryPriority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum MemoryStatus {
+  ACTIVE
+  DEPRECATED
+  ARCHIVED
+}
+
+enum ProjectIdentityType {
+  GIT_REMOTE
+  MONOREPO_SUBPROJECT
+  PACKAGE_MANIFEST
+  WORKSPACE_DIGEST
+  PLATFORM_SESSION
+}
+
+model Project {
+  id              String            @id @default(uuid())
+  name            String            @db.VarChar(100)
+  slug            String            @unique @db.VarChar(100)
+  description     String?           @db.Text
+  status          ProjectStatus     @default(ACTIVE)
+  creationSource  String            @default("MANUAL") @db.VarChar(50)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  memories        Memory[]
+  identities      ProjectIdentity[]
+  sources         ProjectSource[]
+
+  @@map("projects")
+}
+
+model ProjectIdentity {
+  id           String              @id @default(uuid())
+  projectId    String
+  type         ProjectIdentityType
+  value        String              @db.Text
+  identityHash String              @db.Char(64)
+  isPrimary    Boolean             @default(false)
+  confidence   Int                 @default(100)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([type, identityHash])
+  @@index([projectId])
+  @@index([type, identityHash])
+  @@map("project_identities")
+}
+
+model ProjectSource {
+  id              String    @id @default(uuid())
+  projectId       String
+  platform        String    @db.VarChar(50)
+  externalId      String?   @db.VarChar(255)
+  localPathDigest String?   @db.Char(64)
+  metadata        Json?
+  lastSeenAt      DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([platform, externalId])
+  @@map("project_sources")
+}
+
+model Memory {
+  id          String         @id @default(uuid())
+  projectId   String
+  type        MemoryType
+  title       String         @db.VarChar(200)
+  content     String         @db.Text
+  priority    MemoryPriority @default(NORMAL)
+  contentHash String         @db.Char(64)
+  status      MemoryStatus   @default(ACTIVE)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
+  @@index([projectId, contentHash])
+  @@index([projectId, type, priority])
+  @@map("memories")
+}
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  name        String    @db.VarChar(100)
+  keyHash     String    @unique @map("key_hash") @db.Char(64)
+  prefix      String    @db.VarChar(16)
+  last4       String    @db.VarChar(4)
+  scopes      String[]  @default(["read", "write"])
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  lastUsedAt  DateTime? @map("last_used_at")
+  expiresAt   DateTime? @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+
+  @@index([keyHash])
+  @@map("api_keys")
+}
+

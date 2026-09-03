@@ -1,0 +1,291 @@
+import { prisma } from "@/lib/prisma";
+import {
+  generateMemoryHash,
+  normalizeContent,
+  normalizeTitle,
+} from "@/lib/hash";
+import { NotFoundError, ConflictError, ValidationError } from "@/lib/errors";
+import {
+  createMemorySchema,
+  updateMemorySchema,
+  memoryIdSchema,
+  listMemoriesFilterSchema,
+  type CreateMemoryInput,
+  type UpdateMemoryInput,
+  type ListMemoriesFilter,
+} from "@/validations/memory.validation";
+import type { Memory, MemoryPriority } from "@prisma/client";
+
+/**
+ * Creates a new Memory record for a project.
+ *
+ * Enforces:
+ * 1. Project existence
+ * 2. Deterministic content and title normalization
+ * 3. SHA-256 content hashing
+ * 4. Project-isolated duplicate detection (identical hash in same project rejected)
+ */
+export async function createMemory(
+  rawInput: CreateMemoryInput
+): Promise<Memory> {
+  const parseResult = createMemorySchema.safeParse(rawInput);
+  if (!parseResult.success) {
+    throw new ValidationError(
+      "Invalid memory input data",
+      parseResult.error.flatten()
+    );
+  }
+
+  const { projectId, type, title, content, priority, status } =
+    parseResult.data;
+
+  // Verify project exists
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+  });
+
+  if (!project) {
+    throw new NotFoundError(
+      `Project with ID '${projectId}' not found`,
+      "PROJECT_NOT_FOUND",
+      { projectId }
+    );
+  }
+
+  const normalizedTitle = normalizeTitle(title);
+  const normalizedContent = normalizeContent(content);
+  const contentHash = generateMemoryHash(
+    type,
+    normalizedTitle,
+    normalizedContent
+  );
+
+  // Check for duplicate within the same project
+  const existingDuplicate = await prisma.memory.findFirst({
+    where: {
+      projectId,
+      contentHash,
+    },
+  });
+
+  if (existingDuplicate) {
+    throw new ConflictError(
+      "Duplicate memory with identical type, title, and content already exists in this project",
+      "MEMORY_DUPLICATE",
+      {
+        existingMemoryId: existingDuplicate.id,
+        projectId,
+        contentHash,
+        title: existingDuplicate.title,
+      }
+    );
+  }
+
+  return prisma.memory.create({
+    data: {
+      projectId,
+      type,
+      title: normalizedTitle,
+      content: normalizedContent,
+      priority: priority ?? "NORMAL",
+      status: status ?? "ACTIVE",
+      contentHash,
+    },
+  });
+}
+
+/**
+ * Retrieves a single Memory by its UUID.
+ */
+export async function getMemoryById(id: string): Promise<Memory> {
+  const parseResult = memoryIdSchema.safeParse(id);
+  if (!parseResult.success) {
+    throw new ValidationError(
+      "Invalid memory ID format",
+      parseResult.error.flatten()
+    );
+  }
+
+  const memory = await prisma.memory.findUnique({
+    where: { id },
+  });
+
+  if (!memory) {
+    throw new NotFoundError(
+      `Memory with ID '${id}' not found`,
+      "MEMORY_NOT_FOUND",
+      { id }
+    );
+  }
+
+  return memory;
+}
+
+/**
+ * Priority weighting hierarchy: CRITICAL (4) -> HIGH (3) -> NORMAL (2) -> LOW (1)
+ */
+const PRIORITY_WEIGHT: Record<MemoryPriority, number> = {
+  CRITICAL: 4,
+  HIGH: 3,
+  NORMAL: 2,
+  LOW: 1,
+};
+
+/**
+ * Lists memories for a project with optional filters (status, type, priority).
+ * Guaranteed ordering: CRITICAL -> HIGH -> NORMAL -> LOW, then updatedAt DESC.
+ */
+export async function listMemoriesByProject(
+  filter: ListMemoriesFilter
+): Promise<Memory[]> {
+  const parseResult = listMemoriesFilterSchema.safeParse(filter);
+  if (!parseResult.success) {
+    throw new ValidationError(
+      "Invalid memory filter criteria",
+      parseResult.error.flatten()
+    );
+  }
+
+  const { projectId, type, priority, status } = parseResult.data;
+
+  // Project existence check
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+  });
+
+  if (!project) {
+    throw new NotFoundError(
+      `Project with ID '${projectId}' not found`,
+      "PROJECT_NOT_FOUND",
+      { projectId }
+    );
+  }
+
+  const memories = await prisma.memory.findMany({
+    where: {
+      projectId,
+      ...(status !== undefined && { status }),
+      ...(type !== undefined && { type }),
+      ...(priority !== undefined && { priority }),
+    },
+    orderBy: [{ priority: "desc" }, { updatedAt: "desc" }],
+  });
+
+  // Deterministic application-level sort to guarantee strict business priority ordering:
+  // CRITICAL -> HIGH -> NORMAL -> LOW, and within the same priority level, updatedAt DESC.
+  return memories.sort((a, b) => {
+    const pDiff = PRIORITY_WEIGHT[b.priority] - PRIORITY_WEIGHT[a.priority];
+    if (pDiff !== 0) return pDiff;
+    return b.updatedAt.getTime() - a.updatedAt.getTime();
+  });
+}
+
+/**
+ * Updates an existing memory record.
+ * If type, title, or content changes, the SHA-256 hash is recalculated and
+ * verified against project-level duplicate collisions before saving.
+ */
+export async function updateMemory(
+  id: string,
+  rawInput: UpdateMemoryInput
+): Promise<Memory> {
+  const idResult = memoryIdSchema.safeParse(id);
+  if (!idResult.success) {
+    throw new ValidationError(
+      "Invalid memory ID format",
+      idResult.error.flatten()
+    );
+  }
+
+  const parseResult = updateMemorySchema.safeParse(rawInput);
+  if (!parseResult.success) {
+    throw new ValidationError(
+      "Invalid memory update data",
+      parseResult.error.flatten()
+    );
+  }
+
+  const existing = await getMemoryById(id);
+
+  const newType = parseResult.data.type ?? existing.type;
+  const newTitle =
+    parseResult.data.title !== undefined
+      ? normalizeTitle(parseResult.data.title)
+      : existing.title;
+  const newContent =
+    parseResult.data.content !== undefined
+      ? normalizeContent(parseResult.data.content)
+      : existing.content;
+
+  let newContentHash = existing.contentHash;
+  if (
+    parseResult.data.type !== undefined ||
+    parseResult.data.title !== undefined ||
+    parseResult.data.content !== undefined
+  ) {
+    newContentHash = generateMemoryHash(newType, newTitle, newContent);
+
+    // Check duplicate in same project excluding this record
+    const duplicate = await prisma.memory.findFirst({
+      where: {
+        projectId: existing.projectId,
+        contentHash: newContentHash,
+        NOT: { id },
+      },
+    });
+
+    if (duplicate) {
+      throw new ConflictError(
+        "Duplicate memory with identical type, title, and content already exists in this project",
+        "MEMORY_DUPLICATE",
+        {
+          existingMemoryId: duplicate.id,
+          projectId: existing.projectId,
+          contentHash: newContentHash,
+          title: duplicate.title,
+        }
+      );
+    }
+  }
+
+  return prisma.memory.update({
+    where: { id },
+    data: {
+      ...(parseResult.data.type !== undefined && { type: newType }),
+      ...(parseResult.data.title !== undefined && { title: newTitle }),
+      ...(parseResult.data.content !== undefined && { content: newContent }),
+      ...(parseResult.data.priority !== undefined && {
+        priority: parseResult.data.priority,
+      }),
+      ...(parseResult.data.status !== undefined && {
+        status: parseResult.data.status,
+      }),
+      contentHash: newContentHash,
+    },
+  });
+}
+
+/**
+ * Soft-archives a memory item (status = ARCHIVED).
+ */
+export async function archiveMemory(id: string): Promise<Memory> {
+  await getMemoryById(id);
+
+  return prisma.memory.update({
+    where: { id },
+    data: { status: "ARCHIVED" },
+  });
+}
+
+/**
+ * Soft-deprecates a memory item (status = DEPRECATED).
+ * Historical knowledge remains retained in database but flagged as deprecated.
+ */
+export async function deprecateMemory(id: string): Promise<Memory> {
+  await getMemoryById(id);
+
+  return prisma.memory.update({
+    where: { id },
+    data: { status: "DEPRECATED" },
+  });
+}
