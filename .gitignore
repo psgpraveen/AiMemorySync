@@ -19,6 +19,10 @@
 
 # production
 /build
+/dist
+packages/*/dist
+packages/vscode-extension/*.vsix
+
 
 # misc
 .DS_Store

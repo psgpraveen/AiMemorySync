@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build-extension",
+      "type": "shell",
+      "command": "npm run build --workspace=@aimemory/vscode-extension",
+      "group": "build",
+      "presentation": {
+        "reveal": "silent"
+      },
+      "problemMatcher": "$tsc"
+    }
+  ]
+}

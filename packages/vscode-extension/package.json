@@ -1,0 +1,242 @@
+{
+  "name": "aimemory-vscode",
+  "displayName": "AiMemorySync",
+  "description": "Automatic AI project memory — resolves your workspace, fetches relevant context, and lets you manage memories directly in VS Code.",
+  "version": "0.1.0",
+  "publisher": "aimemory",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "memory",
+    "context",
+    "copilot",
+    "project"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+
+  "main": "./dist/extension.cjs",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aimemory.setApiKey",
+        "title": "AiMemory: Connect / Set API Key",
+        "icon": "$(key)"
+      },
+      {
+        "command": "aimemory.removeApiKey",
+        "title": "AiMemory: Disconnect / Remove API Key",
+        "icon": "$(circle-slash)"
+      },
+      {
+        "command": "aimemory.checkConnection",
+        "title": "AiMemory: Check API Connection",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "aimemory.resolveProject",
+        "title": "AiMemory: Resolve Current Project",
+        "icon": "$(search)"
+      },
+      {
+        "command": "aimemory.copyContext",
+        "title": "AiMemory: Copy Project Context to Clipboard",
+        "icon": "$(clippy)"
+      },
+      {
+        "command": "aimemory.previewContext",
+        "title": "AiMemory: Preview Project Context (Markdown)",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "aimemory.addMemory",
+        "title": "AiMemory: Add New Memory",
+        "icon": "$(add)"
+      },
+      {
+        "command": "aimemory.editMemory",
+        "title": "AiMemory: Edit Memory",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "aimemory.deprecateMemory",
+        "title": "AiMemory: Deprecate Memory",
+        "icon": "$(warning)"
+      },
+      {
+        "command": "aimemory.archiveMemory",
+        "title": "AiMemory: Archive Memory",
+        "icon": "$(archive)"
+      },
+      {
+        "command": "aimemory.refreshAll",
+        "title": "AiMemory: Refresh All Project Data",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "aimemory.openDashboard",
+        "title": "AiMemory: Open Project in Web Dashboard",
+        "icon": "$(link-external)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "aimemory",
+          "title": "AiMemory",
+          "icon": "media/view-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "aimemory": [
+        {
+          "id": "aimemory-projects",
+          "name": "Project Identity",
+          "icon": "media/view-icon.svg",
+          "contextualTitle": "AiMemory — Project"
+        },
+        {
+          "id": "aimemory-memories",
+          "name": "Project Memories",
+          "icon": "media/view-icon.svg",
+          "contextualTitle": "AiMemory — Memories"
+        },
+        {
+          "id": "aimemory-context",
+          "name": "Context Preview",
+          "icon": "media/view-icon.svg",
+          "contextualTitle": "AiMemory — Context"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "aimemory.setApiKey",
+          "when": "view == aimemory-projects",
+          "group": "navigation"
+        },
+        {
+          "command": "aimemory.resolveProject",
+          "when": "view == aimemory-projects",
+          "group": "navigation"
+        },
+        {
+          "command": "aimemory.refreshAll",
+          "when": "view == aimemory-projects || view == aimemory-memories",
+          "group": "navigation"
+        },
+        {
+          "command": "aimemory.addMemory",
+          "when": "view == aimemory-memories",
+          "group": "navigation"
+        },
+        {
+          "command": "aimemory.copyContext",
+          "when": "view == aimemory-context",
+          "group": "navigation"
+        },
+        {
+          "command": "aimemory.previewContext",
+          "when": "view == aimemory-context",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "aimemory.editMemory",
+          "when": "view == aimemory-memories && viewItem == memoryItem",
+          "group": "inline"
+        },
+        {
+          "command": "aimemory.deprecateMemory",
+          "when": "view == aimemory-memories && viewItem == memoryItem",
+          "group": "inline"
+        },
+        {
+          "command": "aimemory.archiveMemory",
+          "when": "view == aimemory-memories && viewItem == memoryItem",
+          "group": "inline"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "aimemory.editMemory",
+          "when": "false"
+        },
+        {
+          "command": "aimemory.deprecateMemory",
+          "when": "false"
+        },
+        {
+          "command": "aimemory.archiveMemory",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AiMemorySync",
+      "properties": {
+        "aimemory.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "Base URL of the AiMemorySync backend server (e.g. https://api.aimemorysync.com or http://localhost:3000)."
+        },
+        "aimemory.autoResolve": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically discover and resolve project identity when opening a workspace folder."
+        },
+        "aimemory.contextBudget": {
+          "type": "number",
+          "default": 8000,
+          "minimum": 500,
+          "maximum": 64000,
+          "description": "Default maximum character budget for assembled AI context."
+        },
+        "aimemory.enableStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the AiMemorySync project status indicator in the status bar."
+        },
+        "aimemory.logLevel": {
+          "type": "string",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARN",
+            "ERROR"
+          ],
+          "default": "INFO",
+          "description": "Logging verbosity written to the AiMemorySync Output Channel."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "watch": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "package": "npm run build && npx vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "@aimemory/client-core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3",
+    "tsup": "^8.4.0",
+    "typescript": "^5"
+  }
+}
