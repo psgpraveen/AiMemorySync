@@ -25,17 +25,42 @@ export class ApiError extends Error {
 let globalApiKey: string | null = null;
 
 /**
- * Configures the global API key used for client-side API requests.
+ * Configures the global API key used for client-side API requests and persists it to browser storage.
  */
 export function setApiKey(key: string | null) {
-  globalApiKey = key;
+  globalApiKey = key ? key.trim() : null;
+  if (typeof window !== "undefined") {
+    try {
+      if (globalApiKey) {
+        localStorage.setItem("aimemory_api_key", globalApiKey);
+      } else {
+        localStorage.removeItem("aimemory_api_key");
+      }
+    } catch {
+      // Ignore storage errors in restricted browser contexts
+    }
+  }
 }
 
 /**
- * Retrieves the currently configured global API key.
+ * Retrieves the currently configured global API key from memory or browser storage.
  */
 export function getApiKey(): string | null {
-  return globalApiKey;
+  if (globalApiKey) {
+    return globalApiKey;
+  }
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("aimemory_api_key");
+      if (stored) {
+        globalApiKey = stored.trim();
+        return globalApiKey;
+      }
+    } catch {
+      // Ignore storage errors in restricted browser contexts
+    }
+  }
+  return null;
 }
 
 /**
@@ -47,9 +72,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...((options.headers as Record<string, string>) || {}),
   };
 
-  if (globalApiKey && !headers["Authorization"] && !headers["authorization"]) {
-    headers["Authorization"] = `Bearer ${globalApiKey}`;
+  const key = getApiKey();
+  if (key && !headers["Authorization"] && !headers["authorization"]) {
+    headers["Authorization"] = `Bearer ${key}`;
   }
+
 
   const response = await fetch(path, {
     ...options,

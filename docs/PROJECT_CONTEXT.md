@@ -28,14 +28,14 @@ Future anticipated capabilities (planned for later phases; not implemented in Ph
 - Remote coding and PC control
 
 ## Current Phase
-**Phase 5B.0 — API Authentication & Client Security Foundation (Completed)**
-The authentication and security layer has been implemented and verified across all REST endpoints:
-- **Cryptographic API Keys**: Generated 256-bit entropy keys (`aimem_live_...` and `aimem_test_...`) with scanner-detectable prefixes and SHA-256 storage at rest. Plaintext keys are shown strictly once.
-- **Database Schema**: Additive `ApiKey` Prisma model with `keyHash` unique index and migration `20260903103353_add_api_keys_and_auth` applied to Supabase PostgreSQL.
-- **Centralized Route Guard**: Implemented `requireAuth()` in `src/lib/api/auth-guard.ts` enforcing Bearer token authentication, scope authorization (`read`, `write`, `admin`), and rate limiting across all `/api/projects/*`, `/api/memories/*`, and `/api/auth/*` endpoints.
-- **In-Memory Rate Limiter**: Built sliding-window rate limiter in `src/lib/api/rate-limiter.ts` throttling burst requests with standard rate limit headers.
-- **Key Management & CLI**: Created admin endpoints (`GET/POST /api/auth/keys`, `POST /api/auth/keys/:id/revoke`) and developer CLI tool `npm run key:generate` (`scripts/generate-api-key.ts`).
-- **Verification**: Complete automated security test suite passed (unauthenticated rejection 401, malformed token rejection, non-existent key rejection, scope enforcement 403, instant revocation 401, expiration 401, rate limiting 429, and database cleanup with 0 residuals). Static quality checks: `npx prisma validate` (0), `npm run lint` (0), `npx tsc --noEmit` (0), `npm run build` (0).
+**Phase 5B.1 — Client Core SDK (`@aimemory/client-core`) (Completed & Verified)**
+Implemented and verified the zero-dependency, platform-independent Client Core SDK:
+- **Package**: `@aimemory/client-core` located in `packages/client-core/`.
+- **Target Platforms**: VS Code extension, Cursor, Antigravity, browser extensions, CLI tools, and AI platform integrations.
+- **Runtime Dependencies**: Zero (0) production runtime dependencies; builds to dual ESM (`dist/index.mjs`), CJS (`dist/index.cjs`), and TypeScript declarations (`dist/index.d.ts`).
+- **Core Capabilities**: Pluggable adapters (`SecureStorageAdapter`, `CacheAdapter`, `LoggerAdapter`), resilient HTTP transport with exponential backoff and jitter on safe GET requests, typed error hierarchy, typed event emitter with colon-separated lowercase events, and domain modules (`auth`, `projects`, `memories`, `context`).
+- **Verification**: 23 automated SDK unit/integration tests passing (100%), full root TypeScript checks passing, ESLint passing, and Next.js production build passing.
+
 
 ## Current Technology Stack
 - **Framework**: Next.js 16.3.4 (App Router, Turbopack)
