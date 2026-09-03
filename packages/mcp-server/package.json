@@ -1,0 +1,41 @@
+{
+  "name": "@aimemory/mcp-server",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Universal Model Context Protocol (MCP) server for AiMemorySync",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "aimemory-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "npx tsx test/run-all-tests.ts"
+  },
+  "keywords": [
+    "aimemory",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "antigravity",
+    "cursor",
+    "chatgpt"
+  ],
+  "author": "Antigravity Team",
+  "license": "MIT",
+  "dependencies": {
+    "@aimemory/client-core": "*",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsup": "^8.4.0",
+    "typescript": "^5"
+  }
+}

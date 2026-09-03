@@ -27,11 +27,18 @@ export function ErrorState({
             </p>
           )}
           {code === "UNAUTHORIZED" && (
-            <p className="mt-2 text-xs text-red-700 dark:text-red-300">
-              💡 <strong>Tip:</strong> Click the <strong>&quot;Set API Key&quot;</strong> button in the top navigation bar to configure your secret key (or run <code className="rounded bg-red-100 px-1 py-0.5 font-mono dark:bg-red-950">npm run key:generate</code> in your terminal).
-            </p>
+            <div className="mt-3 flex items-center gap-3">
+              <a
+                href="/login"
+                className="inline-flex items-center gap-1.5 rounded bg-red-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-900 transition"
+              >
+                Sign In with New API Key &rarr;
+              </a>
+              <span className="text-xs text-red-700 dark:text-red-300">
+                or run <code className="rounded bg-red-100 px-1 py-0.5 font-mono dark:bg-red-950">npm run key:generate</code>
+              </span>
+            </div>
           )}
-
         </div>
         {onRetry && (
           <button

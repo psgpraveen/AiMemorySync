@@ -4,7 +4,7 @@ import { useState, useEffect, startTransition } from "react";
 
 import Link from "next/link";
 
-import { getApiKey, setApiKey } from "@/lib/api-client";
+import { getApiKey, setApiKey, verifyApiKey } from "@/lib/api-client";
 import { Modal } from "@/components/shared/modal";
 
 export function Navbar() {
@@ -14,6 +14,7 @@ export function Navbar() {
   const [currentKey, setCurrentKey] = useState<string>("");
   const [inputKey, setInputKey] = useState<string>("");
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [keyStatus, setKeyStatus] = useState<"none" | "valid" | "invalid">("none");
 
   useEffect(() => {
     const stored = getApiKey() || "";
@@ -21,10 +22,21 @@ export function Navbar() {
       setCurrentKey(stored);
       setInputKey(stored);
     });
+
+    if (stored) {
+      verifyApiKey(stored)
+        .then((res) => {
+          startTransition(() => {
+            setKeyStatus(res.valid ? "valid" : "invalid");
+          });
+        })
+        .catch(() => {
+          startTransition(() => {
+            setKeyStatus("invalid");
+          });
+        });
+    }
   }, []);
-
-
-
 
   function handleSaveKey(e: React.FormEvent) {
     e.preventDefault();
@@ -68,19 +80,39 @@ export function Navbar() {
               >
                 Projects
               </Link>
+              <Link
+                href="/integrations"
+                className="text-zinc-600 transition-colors hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
+              >
+                Integrations
+              </Link>
+              <Link
+                href="/settings/api-keys"
+                className="text-zinc-600 transition-colors hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
+              >
+                API Keys
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsKeyModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 transition"
             >
               <span
                 className={`h-2 w-2 rounded-full ${
-                  currentKey ? "bg-emerald-500" : "bg-amber-500"
+                  keyStatus === "valid"
+                    ? "bg-emerald-500"
+                    : keyStatus === "invalid"
+                    ? "bg-red-500 animate-pulse"
+                    : "bg-amber-500"
                 }`}
               />
-              {currentKey ? "API Key Configured" : "Set API Key"}
+              {keyStatus === "valid"
+                ? "API Key Active"
+                : keyStatus === "invalid"
+                ? "Invalid API Key"
+                : "Set API Key"}
             </button>
 
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">

@@ -23,11 +23,13 @@ export class ApiError extends Error {
 }
 
 let globalApiKey: string | null = null;
+let verificationCache: { key: string; result: VerifyApiKeyResponse; expiresAt: number } | null = null;
 
 /**
  * Configures the global API key used for client-side API requests and persists it to browser storage.
  */
 export function setApiKey(key: string | null) {
+  verificationCache = null;
   globalApiKey = key ? key.trim() : null;
   if (typeof window !== "undefined") {
     try {
@@ -272,4 +274,129 @@ export async function resolveProject(
     body: JSON.stringify(payload),
   });
 }
+
+// ----------------------------------------------------
+// Authentication & API Key Management API Client
+// ----------------------------------------------------
+
+export interface ApiKeyDto {
+  id: string;
+  name: string;
+  prefix: string;
+  last4: string;
+  scopes: string[];
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt?: string | null;
+  expiresAt?: string | null;
+  revokedAt?: string | null;
+}
+
+export interface VerifyApiKeyResponse {
+  valid: boolean;
+  key: ApiKeyDto;
+}
+
+export interface CreateApiKeyPayload {
+  name: string;
+  scopes?: string[];
+  expiresInDays?: number;
+}
+
+export interface CreateApiKeyResponse {
+  apiKey: ApiKeyDto;
+  rawKey: string;
+}
+
+export async function verifyApiKey(key?: string): Promise<VerifyApiKeyResponse> {
+  const targetKey = (key || getApiKey() || "").trim();
+  const now = Date.now();
+
+  // Return cached verification result if valid within last 60 seconds
+  if (
+    verificationCache &&
+    verificationCache.key === targetKey &&
+    verificationCache.expiresAt > now
+  ) {
+    return verificationCache.result;
+  }
+
+  const headers: Record<string, string> = {};
+  if (targetKey) {
+    headers["Authorization"] = `Bearer ${targetKey}`;
+  }
+
+  const result = await request<VerifyApiKeyResponse>("/api/auth/verify", {
+    method: "GET",
+    headers,
+  });
+
+  if (result.valid) {
+    verificationCache = {
+      key: targetKey,
+      result,
+      expiresAt: now + 60_000,
+    };
+  }
+
+  return result;
+}
+
+export async function bootstrapApiKey(): Promise<CreateApiKeyResponse> {
+  return request<CreateApiKeyResponse>("/api/auth/bootstrap", {
+    method: "POST",
+  });
+}
+
+export async function listApiKeys(): Promise<ApiKeyDto[]> {
+  return request<ApiKeyDto[]>("/api/auth/keys", {
+    method: "GET",
+  });
+}
+
+export async function createApiKey(
+  payload: CreateApiKeyPayload
+): Promise<CreateApiKeyResponse> {
+  return request<CreateApiKeyResponse>("/api/auth/keys", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function revokeApiKey(id: string): Promise<ApiKeyDto> {
+  return request<ApiKeyDto>(`/api/auth/keys/${encodeURIComponent(id)}/revoke`, {
+    method: "POST",
+  });
+}
+
+// ----------------------------------------------------
+// Integration Connection Testing Client
+// ----------------------------------------------------
+
+export interface TestIntegrationPayload {
+  integration: string;
+  apiKey?: string;
+}
+
+export interface TestIntegrationResponse {
+  success: boolean;
+  message: string;
+  checks: {
+    apiReachable: boolean;
+    apiKeyValid: boolean;
+    scopesValid: boolean;
+    mcpReady: boolean;
+  };
+  details?: Record<string, unknown>;
+}
+
+export async function testIntegration(
+  payload: TestIntegrationPayload
+): Promise<TestIntegrationResponse> {
+  return request<TestIntegrationResponse>("/api/integrations/test", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 

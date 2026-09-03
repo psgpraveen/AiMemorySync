@@ -95,11 +95,20 @@ export async function validateApiKey(
     }
   }
 
-  // Update lastUsedAt asynchronously without blocking request pipeline
-  void prisma.apiKey.update({
-    where: { id: apiKey.id },
-    data: { lastUsedAt: new Date() },
-  }).catch(() => {});
+  // Update lastUsedAt asynchronously without blocking request pipeline (throttled to at most once every 60s)
+  const now = new Date();
+  const shouldUpdateLastUsed =
+    !apiKey.lastUsedAt ||
+    now.getTime() - new Date(apiKey.lastUsedAt).getTime() > 60_000;
+
+  if (shouldUpdateLastUsed) {
+    void prisma.apiKey
+      .update({
+        where: { id: apiKey.id },
+        data: { lastUsedAt: now },
+      })
+      .catch(() => {});
+  }
 
   return apiKey;
 }
