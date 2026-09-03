@@ -22,6 +22,8 @@
 /dist
 packages/*/dist
 packages/vscode-extension/*.vsix
+.vscode-test/
+packages/vscode-extension/.vscode-test/
 
 
 # misc

@@ -37,7 +37,7 @@ import { ContextTreeDataProvider } from "../src/providers/context-tree.provider.
 import { SECRETS, CONFIG } from "../src/constants.js";
 
 const LIVE_BACKEND_URL = "http://localhost:3000";
-const DEV_API_KEY = "aimem_live_w3AqVs-Z89tHAx1JJlnRaEojPYk8GOct";
+const DEV_API_KEY = process.env.AIMEMORY_TEST_API_KEY || "aimem_live_test_placeholder";
 
 // Colorized test logger
 const PASS = "\x1b[32m✔\x1b[0m";

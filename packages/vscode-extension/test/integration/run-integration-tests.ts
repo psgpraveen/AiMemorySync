@@ -84,21 +84,23 @@ export async function runIntegrationTests(): Promise<{ passed: number; failed: n
 
     // 2. Real Project Discovery & Deduplication
     console.log("\n\x1b[1m2. Real Project Discovery & Deduplication Tests:\x1b[0m");
+    const testSource = { platform: "VSCODE", metadata: { testRunner: "integration" } };
+
     await test("Resolves project via live API without creating duplicates", async () => {
       const discovery = new WorkspaceDiscoveryService();
-      const repoRoot = path.resolve(__dirname, "../../..");
+      const repoRoot = path.resolve(__dirname, "../../../..");
       const folder = createMockWorkspaceFolder(repoRoot, "AiMemorySync-LiveTest");
-      const signals = await discovery.discoverSignals(folder as any);
+      const { signals, source } = await discovery.buildResolveInput(folder as any);
 
       // Resolve first time
-      const r1 = await liveClient.projects.resolve({ signals });
+      const r1 = await liveClient.projects.resolve({ signals, source });
       assert.ok(r1.project.id);
       assert.ok(r1.canonicalIdentity);
       assert.ok(r1.confidence > 0);
       createdProjectId = r1.project.id;
 
       // Re-resolve with identical signals
-      const r2 = await liveClient.projects.resolve({ signals });
+      const r2 = await liveClient.projects.resolve({ signals, source });
       assert.strictEqual(r2.project.id, r1.project.id, "Re-resolution created a duplicate project!");
       assert.strictEqual(r2.isNewlyCreated, false);
     });
@@ -118,8 +120,8 @@ export async function runIntegrationTests(): Promise<{ passed: number; failed: n
         workspaceDigest: "digest-1",
       };
 
-      const rHttps = await liveClient.projects.resolve({ signals: httpsSignals });
-      const rSsh = await liveClient.projects.resolve({ signals: sshSignals });
+      const rHttps = await liveClient.projects.resolve({ signals: httpsSignals, source: testSource });
+      const rSsh = await liveClient.projects.resolve({ signals: sshSignals, source: testSource });
 
       assert.strictEqual(rHttps.project.id, rSsh.project.id, "HTTPS and SSH variants did not resolve to the same project!");
       assert.strictEqual(rHttps.canonicalIdentity, rSsh.canonicalIdentity);
@@ -128,20 +130,20 @@ export async function runIntegrationTests(): Promise<{ passed: number; failed: n
     await test("Monorepo subprojects remain distinct projects", async () => {
       const subprojectASignals = {
         gitRemoteUrl: "https://github.com/aimemory/monorepo-test.git",
-        monorepoSubpath: "packages/frontend",
+        monorepoSubPath: "packages/frontend",
         workspaceName: "frontend",
         workspaceDigest: "digest-front",
       };
 
       const subprojectBSignals = {
         gitRemoteUrl: "https://github.com/aimemory/monorepo-test.git",
-        monorepoSubpath: "packages/backend",
+        monorepoSubPath: "packages/backend",
         workspaceName: "backend",
         workspaceDigest: "digest-back",
       };
 
-      const rA = await liveClient.projects.resolve({ signals: subprojectASignals });
-      const rB = await liveClient.projects.resolve({ signals: subprojectBSignals });
+      const rA = await liveClient.projects.resolve({ signals: subprojectASignals, source: testSource });
+      const rB = await liveClient.projects.resolve({ signals: subprojectBSignals, source: testSource });
 
       assert.notStrictEqual(rA.project.id, rB.project.id, "Distinct monorepo subprojects resolved to the same project!");
       assert.ok(rA.canonicalIdentity.includes("packages/frontend"));
@@ -150,13 +152,15 @@ export async function runIntegrationTests(): Promise<{ passed: number; failed: n
 
     await test("Local folder without Git resolves via manifest/digest fallback", async () => {
       const nonGitSignals = {
-        packageJsonName: "@test-scope/non-git-app",
-        packageJsonVersion: "1.0.0",
+        packageManifest: {
+          name: "@test-scope/non-git-app",
+          ecosystem: "npm",
+        },
         workspaceName: "non-git-app",
         workspaceDigest: "digest-non-git-123456",
       };
 
-      const res = await liveClient.projects.resolve({ signals: nonGitSignals });
+      const res = await liveClient.projects.resolve({ signals: nonGitSignals, source: testSource });
       assert.ok(res.project.id);
       assert.ok(res.canonicalIdentity.includes("@test-scope/non-git-app"));
       assert.strictEqual(res.matchedBy, "PACKAGE_MANIFEST");
@@ -168,7 +172,7 @@ export async function runIntegrationTests(): Promise<{ passed: number; failed: n
         workspaceDigest: "sha256-empty-scratch-digest-abc",
       };
 
-      const res = await liveClient.projects.resolve({ signals: emptySignals });
+      const res = await liveClient.projects.resolve({ signals: emptySignals, source: testSource });
       assert.ok(res.project.id);
       assert.strictEqual(res.matchedBy, "WORKSPACE_DIGEST");
     });
@@ -206,9 +210,7 @@ export async function runIntegrationTests(): Promise<{ passed: number; failed: n
       assert.strictEqual(updated.priority, "HIGH");
 
       // 4. Deprecate memory
-      const deprecated = await liveClient.memories.deprecate(created.id, {
-        reason: "Superseded by architectural update",
-      });
+      const deprecated = await liveClient.memories.deprecate(created.id);
       assert.strictEqual(deprecated.status, "DEPRECATED");
 
       // 5. Verify it is excluded from active list
@@ -223,11 +225,12 @@ export async function runIntegrationTests(): Promise<{ passed: number; failed: n
     // 4. Live Context Assembly & Budget Constraints
     console.log("\n\x1b[1m4. Live Context Assembly & Budgeting Tests:\x1b[0m");
     await test("Generates assembled AI context with character budget enforcement", async () => {
-      // Create an active memory so context is non-empty
+      // Create an active memory with dynamic title/content so context is non-empty and unique
+      const testTitle = `Deterministic Context Assembly - ${Date.now()}`;
       const activeMem = await liveClient.memories.create(createdProjectId, {
         type: "REQUIREMENT",
-        title: "Deterministic Context Assembly",
-        content: "Context generation must respect character budget limits strictly.",
+        title: testTitle,
+        content: `Context generation must respect character budget limits strictly. Token: ${Date.now()}`,
         priority: "HIGH",
       });
 
@@ -237,7 +240,7 @@ export async function runIntegrationTests(): Promise<{ passed: number; failed: n
       assert.strictEqual(ctx2000.budget.requested, 2000);
       assert.ok(ctx2000.budget.usedCharacters <= 2000);
       assert.ok(ctx2000.markdown.length <= 2000);
-      assert.ok(ctx2000.markdown.includes("Deterministic Context Assembly"));
+      assert.ok(ctx2000.markdown.includes(testTitle));
 
       // Test budget 5000
       const ctx5000 = await liveClient.context.get(createdProjectId, { budget: 5000 });
@@ -383,5 +386,6 @@ if (process.argv[1]?.includes("run-integration-tests")) {
   runIntegrationTests().then(({ passed, failed }) => {
     console.log(`\nINTEGRATION TEST SUMMARY: ${passed} passed, ${failed} failed`);
     if (failed > 0) process.exit(1);
+    process.exit(0);
   });
 }

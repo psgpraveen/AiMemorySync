@@ -142,7 +142,7 @@ export async function runUnitTests(): Promise<{ passed: number; failed: number }
 
   console.log("\n\x1b[1m3. Git Detection & Signal Extraction Tests:\x1b[0m");
   await test("Detects repository Git remote and strips embedded credentials", async () => {
-    const repoRoot = path.resolve(__dirname, "../../..");
+    const repoRoot = path.resolve(__dirname, "../../../..");
     const remoteUrl = await detectGitRemoteUrl(repoRoot);
 
     if (remoteUrl) {
@@ -152,9 +152,9 @@ export async function runUnitTests(): Promise<{ passed: number; failed: number }
   });
 
   await test("Guarantees root Git repo is not misclassified as monorepo subproject", () => {
-    const repoRoot = path.resolve(__dirname, "../../..");
+    const repoRoot = path.resolve(__dirname, "../../../..");
     const subpath = detectMonorepoSubPath(repoRoot);
-    assert.strictEqual(subpath, undefined);
+    assert.strictEqual(subpath, null);
   });
 
   await test("Correctly detects subproject path when nested in monorepo", () => {
@@ -165,7 +165,7 @@ export async function runUnitTests(): Promise<{ passed: number; failed: number }
 
   await test("WorkspaceDiscoveryService builds signals without leaking raw absolute paths", async () => {
     const discovery = new WorkspaceDiscoveryService();
-    const repoRoot = path.resolve(__dirname, "../../..");
+    const repoRoot = path.resolve(__dirname, "../../../..");
     const folder = createMockWorkspaceFolder(repoRoot, "AiMemorySync");
     const { signals } = await discovery.buildResolveInput(folder as any);
 
@@ -242,11 +242,11 @@ export async function runUnitTests(): Promise<{ passed: number; failed: number }
 
     statusBar.setUntrusted();
     assert.strictEqual(statusBar.getState(), "untrusted");
-    assert.ok(item.text.includes("Restricted"));
+    assert.ok(item.text.includes("Untrusted"));
 
     statusBar.setError();
     assert.strictEqual(statusBar.getState(), "error");
-    assert.ok(item.text.includes("Error"));
+    assert.ok(item.text.includes("Offline"));
 
     statusBar.setRateLimited(15);
     assert.strictEqual(statusBar.getState(), "rate-limited");
@@ -293,6 +293,7 @@ export async function runUnitTests(): Promise<{ passed: number; failed: number }
         title: "Use PostgreSQL",
         content: "We use Postgres for all transactions.",
         priority: "CRITICAL",
+        contentHash: "hash-mem-1",
         status: "ACTIVE",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -304,13 +305,14 @@ export async function runUnitTests(): Promise<{ passed: number; failed: number }
         title: "Kebab Case Routes",
         content: "API routes must use kebab-case.",
         priority: "NORMAL",
+        contentHash: "hash-mem-2",
         status: "ACTIVE",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
     ];
 
-    provider.setMemories(mockMemories);
+    provider.setMemories(mockMemories, "Test Repository");
     const categoryNodes = provider.getChildren();
     assert.strictEqual(categoryNodes.length, 2);
 
@@ -351,5 +353,6 @@ if (process.argv[1]?.includes("run-unit-tests")) {
   runUnitTests().then(({ passed, failed }) => {
     console.log(`\nUNIT TEST SUMMARY: ${passed} passed, ${failed} failed`);
     if (failed > 0) process.exit(1);
+    process.exit(0);
   });
 }

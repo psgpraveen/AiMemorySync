@@ -15,13 +15,22 @@ async function main() {
     console.log(`Extension Development Path: ${extensionDevelopmentPath}`);
     console.log(`Extension Tests Path: ${extensionTestsPath}`);
 
-    // Download VS Code, unzip it, and run the integration test
+    const testSandboxDir = path.resolve(__dirname, "../../.vscode-test");
+    const userDataDir = path.join(testSandboxDir, "user-data");
+    const extensionsDir = path.join(testSandboxDir, "extensions");
+
+    // Run the integration test in isolated sandbox
     await runTests({
+      version: "1.136.1",
       extensionDevelopmentPath,
       extensionTestsPath,
       launchArgs: [
+        `--user-data-dir=${userDataDir}`,
+        `--extensions-dir=${extensionsDir}`,
         "--disable-extensions",
         "--disable-gpu",
+        "--disable-updates",
+        "--no-sandbox",
       ],
     });
 
