@@ -3,6 +3,21 @@ import { prisma } from "@/lib/prisma";
 import type { ApiKey } from "@prisma/client";
 import { UnauthorizedError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 
+export type SafeApiKey = Omit<ApiKey, "keyHash">;
+
+export const safeApiKeySelect = {
+  id: true,
+  name: true,
+  prefix: true,
+  last4: true,
+  scopes: true,
+  createdAt: true,
+  updatedAt: true,
+  lastUsedAt: true,
+  expiresAt: true,
+  revokedAt: true,
+} as const;
+
 export interface GenerateApiKeyInput {
   name: string;
   scopes?: string[];
@@ -11,7 +26,7 @@ export interface GenerateApiKeyInput {
 }
 
 export interface GenerateApiKeyResult {
-  apiKey: ApiKey;
+  apiKey: SafeApiKey;
   rawKey: string;
 }
 
@@ -52,6 +67,7 @@ export async function generateApiKey(input: GenerateApiKeyInput): Promise<Genera
       scopes,
       expiresAt,
     },
+    select: safeApiKeySelect,
   });
 
   return { apiKey, rawKey };
@@ -116,7 +132,7 @@ export async function validateApiKey(
 /**
  * Revokes an active API key immediately.
  */
-export async function revokeApiKey(id: string): Promise<ApiKey> {
+export async function revokeApiKey(id: string): Promise<SafeApiKey> {
   const existing = await prisma.apiKey.findUnique({
     where: { id },
   });
@@ -128,14 +144,16 @@ export async function revokeApiKey(id: string): Promise<ApiKey> {
   return prisma.apiKey.update({
     where: { id },
     data: { revokedAt: new Date() },
+    select: safeApiKeySelect,
   });
 }
 
 /**
- * Lists all registered API keys (without exposing raw secret keys).
+ * Lists all registered API keys (without exposing raw secret keys or hashes).
  */
-export async function listApiKeys(): Promise<ApiKey[]> {
+export async function listApiKeys(): Promise<SafeApiKey[]> {
   return prisma.apiKey.findMany({
+    select: safeApiKeySelect,
     orderBy: { createdAt: "desc" },
   });
 }
@@ -143,9 +161,10 @@ export async function listApiKeys(): Promise<ApiKey[]> {
 /**
  * Seeds or retrieves a default bootstrap development API key if none exist.
  */
-export async function ensureBootstrapApiKey(): Promise<{ key: ApiKey; rawKey?: string }> {
+export async function ensureBootstrapApiKey(): Promise<{ key: SafeApiKey; rawKey?: string }> {
   const existingKeys = await prisma.apiKey.findMany({
     where: { revokedAt: null },
+    select: safeApiKeySelect,
     take: 1,
   });
 
