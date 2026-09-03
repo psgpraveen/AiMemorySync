@@ -1,0 +1,12 @@
+.vscode/**
+.vscode-test/**
+src/**
+test/**
+scratch/**
+tsconfig.json
+tsup.config.ts
+*.vsix
+*.log
+.DS_Store
+dist/*.map
+node_modules/**

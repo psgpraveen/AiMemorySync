@@ -4,7 +4,14 @@
   "description": "Automatic AI project memory — resolves your workspace, fetches relevant context, and lets you manage memories directly in VS Code.",
   "version": "0.1.0",
   "publisher": "aimemory",
-  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aimemory/aimemorysync.git"
+  },
+  "bugs": {
+    "url": "https://github.com/aimemory/aimemorysync/issues"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -22,8 +29,7 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-
-  "main": "./dist/extension.cjs",
+  "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
@@ -226,7 +232,10 @@
     "build": "tsup",
     "watch": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "test": "npx tsx test/run-runtime-tests.ts",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "npx tsx test/unit/run-unit-tests.ts",
+    "test:integration": "npx tsx test/integration/run-integration-tests.ts",
+    "test:e2e": "npx tsx test/e2e/runTest.ts",
     "lint": "eslint src --ext .ts",
     "package": "npm run build && npx vsce package --no-dependencies"
   },
@@ -236,6 +245,7 @@
   "devDependencies": {
     "@types/node": "^20",
     "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3",
     "tsup": "^8.4.0",
     "typescript": "^5"

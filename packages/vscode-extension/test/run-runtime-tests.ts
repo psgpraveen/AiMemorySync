@@ -19,7 +19,7 @@
  * 15. Extension activation and deactivation lifecycle
  */
 
-import "./mock-vscode.js";
+import { mockState } from "./mock-vscode.js";
 import * as assert from "assert";
 import * as path from "path";
 import * as fs from "fs";
@@ -621,6 +621,53 @@ async function main() {
     // Both should be cached independently
     assert.strictEqual(lifecycle.getCachedResult(folderA.uri.toString())?.project.name, "app-frontend");
     assert.strictEqual(lifecycle.getCachedResult(folderB.uri.toString())?.project.name, "app-backend");
+  });
+
+  // 11. Extension Activation & Command Execution Tests
+  console.log("\n\x1b[1m11. Extension Activation & Command Registration Tests:\x1b[0m");
+  await runTest("Simulates full extension activation and registers all 12 commands", async () => {
+    const { activate, deactivate } = await import("../src/extension.js");
+    const mockContext = {
+      subscriptions: [] as any[],
+      secrets: new MockSecretStorage(),
+      extensionPath: path.resolve(__dirname, ".."),
+      globalState: { get: () => undefined, update: async () => {} },
+      workspaceState: { get: () => undefined, update: async () => {} },
+    };
+
+    // Pre-seed API key in SecretStorage to test auto-load on startup
+    await mockContext.secrets.store(SECRETS.API_KEY, DEV_API_KEY);
+
+    // Call activate
+    await activate(mockContext as any);
+
+    // Verify all 12 commands registered
+    const expectedCommands = [
+      "aimemory.setApiKey",
+      "aimemory.removeApiKey",
+      "aimemory.checkConnection",
+      "aimemory.resolveProject",
+      "aimemory.copyContext",
+      "aimemory.previewContext",
+      "aimemory.openDashboard",
+      "aimemory.refreshAll",
+      "aimemory.addMemory",
+      "aimemory.editMemory",
+      "aimemory.deprecateMemory",
+      "aimemory.archiveMemory",
+    ];
+
+    for (const cmd of expectedCommands) {
+      assert.ok(mockState.registeredCommands.has(cmd), `Command ${cmd} was not registered during activation!`);
+    }
+
+    // Execute checkConnection command
+    const checkHandler = mockState.registeredCommands.get("aimemory.checkConnection");
+    assert.ok(checkHandler);
+    await checkHandler!();
+
+    // Call deactivate
+    deactivate();
   });
 
   // ---------------------------------------------------------------------------

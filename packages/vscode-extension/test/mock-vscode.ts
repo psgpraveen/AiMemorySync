@@ -1,7 +1,7 @@
 import Module from "module";
 
 export const mockState = {
-  activeApiKey: "aimem_live_w3AqVs-Z89tHAx1JJlnRaEojPYk8GOct",
+  activeApiKey: "",
   config: {
     "aimemory.apiUrl": "http://localhost:3000",
     "aimemory.autoResolve": true,
