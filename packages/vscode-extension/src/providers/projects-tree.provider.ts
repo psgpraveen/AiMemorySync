@@ -54,26 +54,33 @@ export class ProjectsTreeDataProvider
 
   getChildren(_element?: TreeItem): TreeItem[] {
     if (this.isLoading) {
-      return [this.makeItem("$(sync~spin) Resolving project...", undefined, "loading")];
+      return [
+        this.makeItem("Resolving project...", {
+          icon: "sync~spin",
+          contextValue: "loading",
+        }),
+      ];
     }
 
     if (this.errorMessage) {
       return [
-        this.makeItem(
-          `$(alert) ${this.errorMessage}`,
-          "Check output channel for details",
-          "error"
-        ),
+        this.makeItem(this.errorMessage, {
+          description: "Error",
+          tooltip: `Error: ${this.errorMessage}\nCheck output channel for details`,
+          icon: "alert",
+          contextValue: "error",
+        }),
       ];
     }
 
     if (!this.resolveResult) {
       return [
-        this.makeItem(
-          "$(info) No project resolved",
-          "Open a workspace with a Git repository or package.json, then run 'AiMemory: Resolve Current Project'.",
-          "empty"
-        ),
+        this.makeItem("No project resolved", {
+          tooltip:
+            "Open a workspace with a Git repository or package.json, then run 'AiMemory: Resolve Current Project'.",
+          icon: "info",
+          contextValue: "empty",
+        }),
       ];
     }
 
@@ -81,51 +88,63 @@ export class ProjectsTreeDataProvider
       this.resolveResult;
 
     const items: TreeItem[] = [
-      this.makeItem(`$(package) ${project.name}`, "Project Name", "projectName"),
-      this.makeItem(
-        `$(git-branch) ${matchedBy}`,
-        `Identity matched by: ${matchedBy}`,
-        "matchedBy"
-      ),
-      this.makeItem(
-        `$(pulse) ${confidence}% confidence`,
-        `Identity confidence score`,
-        "confidence"
-      ),
-      this.makeItem(
-        `$(tag) ${project.slug}`,
-        `Project slug: ${project.slug}`,
-        "slug"
-      ),
-      this.makeItem(
-        `$(circle-filled) ${project.status}`,
-        `Project status: ${project.status}`,
-        "status"
-      ),
-      this.makeItem(
-        `$(link) ${this.truncate(canonicalIdentity, 50)}`,
-        `Canonical Identity: ${canonicalIdentity}`,
-        "identity"
-      ),
+      this.makeItem(project.name, {
+        description: "Project",
+        tooltip: `Project Name: ${project.name}`,
+        icon: "package",
+        contextValue: "projectName",
+      }),
+      this.makeItem(matchedBy, {
+        description: "Match Method",
+        tooltip: `Identity matched by: ${matchedBy}`,
+        icon: "git-branch",
+        contextValue: "matchedBy",
+      }),
+      this.makeItem(`${confidence}% confidence`, {
+        description: "Confidence",
+        tooltip: `Identity confidence score: ${confidence}%`,
+        icon: "pulse",
+        contextValue: "confidence",
+      }),
+      this.makeItem(project.slug, {
+        description: "Slug",
+        tooltip: `Project slug: ${project.slug}`,
+        icon: "tag",
+        contextValue: "slug",
+      }),
+      this.makeItem(project.status, {
+        description: "Status",
+        tooltip: `Project status: ${project.status}`,
+        icon: project.status === "ACTIVE" ? "circle-filled" : "circle-outline",
+        contextValue: "status",
+      }),
+      this.makeItem(this.truncate(canonicalIdentity, 50), {
+        description: "Identity",
+        tooltip: `Canonical Identity: ${canonicalIdentity}`,
+        icon: "link",
+        contextValue: "identity",
+      }),
     ];
 
     if (project.description) {
       items.push(
-        this.makeItem(
-          `$(info) ${this.truncate(project.description, 60)}`,
-          project.description,
-          "description"
-        )
+        this.makeItem(this.truncate(project.description, 60), {
+          description: "Description",
+          tooltip: project.description,
+          icon: "info",
+          contextValue: "description",
+        })
       );
     }
 
     if (isNewlyCreated) {
       items.push(
-        this.makeItem(
-          "$(sparkle) Newly created",
-          "This project was automatically provisioned on first resolution",
-          "new"
-        )
+        this.makeItem("Newly created", {
+          description: "Provisioned",
+          tooltip: "This project was automatically provisioned on first resolution",
+          icon: "sparkle",
+          contextValue: "new",
+        })
       );
     }
 
@@ -134,12 +153,18 @@ export class ProjectsTreeDataProvider
 
   private makeItem(
     label: string,
-    tooltip?: string,
-    contextValue?: string
+    options?: {
+      description?: string;
+      tooltip?: string;
+      contextValue?: string;
+      icon?: string;
+    }
   ): vscode.TreeItem {
     const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
-    if (tooltip) item.tooltip = tooltip;
-    if (contextValue) item.contextValue = contextValue;
+    if (options?.description) item.description = options.description;
+    if (options?.tooltip) item.tooltip = options.tooltip;
+    if (options?.contextValue) item.contextValue = options.contextValue;
+    if (options?.icon) item.iconPath = new vscode.ThemeIcon(options.icon);
     return item;
   }
 

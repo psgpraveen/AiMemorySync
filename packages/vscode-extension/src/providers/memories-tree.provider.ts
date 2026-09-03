@@ -24,18 +24,18 @@ const TYPE_LABELS: Record<MemoryType, string> = {
   BUG_SOLUTION: "Bug Solutions",
 };
 
-const TYPE_ICONS: Record<MemoryType, string> = {
-  DECISION: "$(milestone)",
-  REQUIREMENT: "$(checklist)",
-  CONVENTION: "$(book)",
-  BUG_SOLUTION: "$(bug)",
+const TYPE_THEME_ICONS: Record<MemoryType, string> = {
+  DECISION: "milestone",
+  REQUIREMENT: "checklist",
+  CONVENTION: "book",
+  BUG_SOLUTION: "bug",
 };
 
-const PRIORITY_ICONS: Record<string, string> = {
-  CRITICAL: "$(flame)",
-  HIGH: "$(arrow-up)",
-  NORMAL: "$(dash)",
-  LOW: "$(arrow-down)",
+const PRIORITY_THEME_ICONS: Record<string, string> = {
+  CRITICAL: "flame",
+  HIGH: "arrow-up",
+  NORMAL: "dash",
+  LOW: "arrow-down",
 };
 
 /**
@@ -97,11 +97,6 @@ export class MemoriesTreeDataProvider
   getChildren(element?: MemoryNode): MemoryNode[] {
     // Loading state
     if (this.isLoading) {
-      const loadingItem = new vscode.TreeItem(
-        "$(sync~spin) Loading memories...",
-        vscode.TreeItemCollapsibleState.None
-      );
-      // Return a pseudo-node via a workaround: use a fake group node label
       return [];
     }
 
@@ -148,28 +143,32 @@ export class MemoriesTreeDataProvider
   }
 
   private buildGroupItem(node: MemoryGroupNode): vscode.TreeItem {
-    const icon = TYPE_ICONS[node.type];
     const label = TYPE_LABELS[node.type];
     const item = new vscode.TreeItem(
-      `${icon} ${label} (${node.memories.length})`,
+      label,
       vscode.TreeItemCollapsibleState.Expanded
     );
+    item.description = `${node.memories.length}`;
+    item.tooltip = `${label} (${node.memories.length} active)`;
+    item.iconPath = new vscode.ThemeIcon(TYPE_THEME_ICONS[node.type] ?? "folder");
     item.contextValue = "memoryGroup";
     return item;
   }
 
   private buildMemoryItem(node: MemoryItemNode): vscode.TreeItem {
     const { memory } = node;
-    const priorityIcon = PRIORITY_ICONS[memory.priority] ?? "$(dash)";
     const item = new vscode.TreeItem(
-      `${priorityIcon} ${memory.title}`,
+      memory.title,
       vscode.TreeItemCollapsibleState.None
     );
 
+    item.iconPath = new vscode.ThemeIcon(
+      PRIORITY_THEME_ICONS[memory.priority] ?? "dash"
+    );
     item.tooltip = new vscode.MarkdownString(
       `**${memory.title}**\n\n${memory.content}\n\n_Priority: ${memory.priority} · Type: ${memory.type}_`
     );
-    item.description = memory.priority;
+    item.description = memory.priority.toLowerCase();
     item.contextValue = "memoryItem";
 
     // Store memory data for commands

@@ -59,22 +59,29 @@ export class ContextTreeDataProvider
   getChildren(_element?: TreeItem): TreeItem[] {
     if (this.isLoading) {
       return [
-        this.makeItem("$(sync~spin) Assembling context...", undefined),
+        this.makeItem("Assembling context...", {
+          icon: "sync~spin",
+        }),
       ];
     }
 
     if (this.errorMessage) {
       return [
-        this.makeItem(`$(alert) ${this.errorMessage}`, "Check output channel for details"),
+        this.makeItem(this.errorMessage, {
+          description: "Error",
+          tooltip: `Error: ${this.errorMessage}\nCheck output channel for details`,
+          icon: "alert",
+        }),
       ];
     }
 
     if (!this.contextResult) {
       return [
-        this.makeItem(
-          "$(info) No context available",
-          "Resolve a project first, then use 'AiMemory: Copy Project Context to Clipboard'."
-        ),
+        this.makeItem("No context available", {
+          tooltip:
+            "Resolve a project first, then use 'AiMemory: Copy Project Context to Clipboard'.",
+          icon: "info",
+        }),
       ];
     }
 
@@ -87,20 +94,26 @@ export class ContextTreeDataProvider
 
     const items: TreeItem[] = [
       this.makeItem(
-        `$(graph) Budget: ${used.toLocaleString()} / ${requested.toLocaleString()} chars (${budgetPct}%)`,
-        `${budgetBar}\n\n${used} of ${requested} character budget used`
+        `Budget: ${used.toLocaleString()} / ${requested.toLocaleString()} chars (${budgetPct}%)`,
+        {
+          description: "Usage",
+          tooltip: `${budgetBar}\n\n${used} of ${requested} character budget used`,
+          icon: "graph",
+        }
       ),
-      this.makeItem(
-        `$(list-unordered) Memories: ${budget.itemCount} included`,
-        `${budget.itemCount} memories included within character budget out of ${includedMemories.length} total assembled`
-      ),
+      this.makeItem(`Memories: ${budget.itemCount} included`, {
+        description: `${includedMemories.length} total`,
+        tooltip: `${budget.itemCount} memories included within character budget out of ${includedMemories.length} total assembled`,
+        icon: "list-unordered",
+      }),
     ];
 
     // Copy action item
     const copyItem = new vscode.TreeItem(
-      "$(clippy) Copy Context to Clipboard",
+      "Copy Context to Clipboard",
       vscode.TreeItemCollapsibleState.None
     );
+    copyItem.iconPath = new vscode.ThemeIcon("clippy");
     copyItem.command = {
       command: "aimemory.copyContext",
       title: "Copy Context",
@@ -111,9 +124,10 @@ export class ContextTreeDataProvider
 
     // Preview action item
     const previewItem = new vscode.TreeItem(
-      "$(preview) Preview in Editor",
+      "Preview in Editor",
       vscode.TreeItemCollapsibleState.None
     );
+    previewItem.iconPath = new vscode.ThemeIcon("preview");
     previewItem.command = {
       command: "aimemory.previewContext",
       title: "Preview Context",
@@ -125,9 +139,18 @@ export class ContextTreeDataProvider
     return items;
   }
 
-  private makeItem(label: string, tooltip?: string): vscode.TreeItem {
+  private makeItem(
+    label: string,
+    options?: {
+      description?: string;
+      tooltip?: string;
+      icon?: string;
+    }
+  ): vscode.TreeItem {
     const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
-    if (tooltip) item.tooltip = tooltip;
+    if (options?.description) item.description = options.description;
+    if (options?.tooltip) item.tooltip = options.tooltip;
+    if (options?.icon) item.iconPath = new vscode.ThemeIcon(options.icon);
     return item;
   }
 

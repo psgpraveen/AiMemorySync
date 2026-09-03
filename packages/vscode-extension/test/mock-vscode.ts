@@ -23,6 +23,7 @@ export class MockTreeItem {
   description?: string;
   contextValue?: string;
   command?: any;
+  iconPath?: any;
 }
 
 export class MockEventEmitter {
@@ -60,6 +61,9 @@ export const mockVscode = {
   },
   ThemeColor: class {
     constructor(public id: string) {}
+  },
+  ThemeIcon: class {
+    constructor(public id: string, public color?: any) {}
   },
   EventEmitter: MockEventEmitter,
   Disposable: MockDisposable,
