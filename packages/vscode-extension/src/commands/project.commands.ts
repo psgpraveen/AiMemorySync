@@ -68,36 +68,33 @@ export function registerProjectCommands(
   // -----------------------------------------------------------------------
   disposables.push(
     vscode.commands.registerCommand("aimemory.copyContext", async () => {
-      const markdown = contextProvider.getMarkdown();
+      const resolveResult = lifecycle.getCachedResult(
+        getActiveFolder()?.uri.toString() ?? ""
+      );
 
-      if (!markdown) {
-        // Try to fetch fresh context
-        const resolveResult = lifecycle.getCachedResult(
-          getActiveFolder()?.uri.toString() ?? ""
-        );
+      if (!resolveResult) {
+        await showInfo("No project resolved. Run 'AiMemory: Resolve Current Project' first.");
+        return;
+      }
 
-        if (!resolveResult) {
-          await showInfo("No project resolved. Run 'AiMemory: Resolve Current Project' first.");
-          return;
-        }
-
-        contextProvider.setLoading(true);
-        try {
-          const budget = vscode.workspace.getConfiguration().get<number>(CONFIG.CONTEXT_BUDGET) ?? 8000;
-          const result = await client.context.get(resolveResult.project.id, { budget });
-          contextProvider.setContextResult(result);
-          await vscode.env.clipboard.writeText(result.markdown);
-          await showInfo("Project context copied to clipboard.");
-        } catch (error) {
+      contextProvider.setLoading(true);
+      try {
+        const budget = vscode.workspace.getConfiguration().get<number>(CONFIG.CONTEXT_BUDGET) ?? 8000;
+        const result = await client.context.get(resolveResult.project.id, { budget });
+        contextProvider.setContextResult(result);
+        await vscode.env.clipboard.writeText(result.markdown);
+        await showInfo("Project context copied to clipboard.");
+      } catch (error) {
+        const fallback = contextProvider.getMarkdown();
+        if (fallback) {
+          await vscode.env.clipboard.writeText(fallback);
+          await showInfo("Project context copied to clipboard (cached).");
+        } else {
           const msg = error instanceof Error ? error.message : "Unknown error";
           contextProvider.setError(msg);
           await showError(`Failed to fetch context: ${msg}`);
         }
-        return;
       }
-
-      await vscode.env.clipboard.writeText(markdown);
-      await showInfo("Project context copied to clipboard.");
     })
   );
 
@@ -106,25 +103,27 @@ export function registerProjectCommands(
   // -----------------------------------------------------------------------
   disposables.push(
     vscode.commands.registerCommand("aimemory.previewContext", async () => {
-      let markdown = contextProvider.getMarkdown();
+      const resolveResult = lifecycle.getCachedResult(
+        getActiveFolder()?.uri.toString() ?? ""
+      );
 
-      if (!markdown) {
-        const resolveResult = lifecycle.getCachedResult(
-          getActiveFolder()?.uri.toString() ?? ""
-        );
+      if (!resolveResult) {
+        await showInfo("No project resolved. Run 'AiMemory: Resolve Current Project' first.");
+        return;
+      }
 
-        if (!resolveResult) {
-          await showInfo("No project resolved. Run 'AiMemory: Resolve Current Project' first.");
-          return;
-        }
-
-        contextProvider.setLoading(true);
-        try {
-          const budget = vscode.workspace.getConfiguration().get<number>(CONFIG.CONTEXT_BUDGET) ?? 8000;
-          const result = await client.context.get(resolveResult.project.id, { budget });
-          contextProvider.setContextResult(result);
-          markdown = result.markdown;
-        } catch (error) {
+      contextProvider.setLoading(true);
+      let markdown: string;
+      try {
+        const budget = vscode.workspace.getConfiguration().get<number>(CONFIG.CONTEXT_BUDGET) ?? 8000;
+        const result = await client.context.get(resolveResult.project.id, { budget });
+        contextProvider.setContextResult(result);
+        markdown = result.markdown;
+      } catch (error) {
+        const fallback = contextProvider.getMarkdown();
+        if (fallback) {
+          markdown = fallback;
+        } else {
           const msg = error instanceof Error ? error.message : "Unknown error";
           contextProvider.setError(msg);
           await showError(`Failed to fetch context: ${msg}`);
@@ -133,7 +132,6 @@ export function registerProjectCommands(
       }
 
       // Open in a virtual document as Markdown
-      const uri = vscode.Uri.parse(`untitled:AiMemory-Context.md`);
       const doc = await vscode.workspace.openTextDocument({
         language: "markdown",
         content: markdown,

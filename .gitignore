@@ -21,9 +21,12 @@
 /build
 /dist
 packages/*/dist
+*.vsix
 packages/vscode-extension/*.vsix
+packages/vscode-extension/releases/
 .vscode-test/
 packages/vscode-extension/.vscode-test/
+scratch/
 
 
 # misc

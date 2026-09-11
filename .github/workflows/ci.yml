@@ -1,0 +1,60 @@
+name: CI Quality Gates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Lint, Typecheck & Test Monorepo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Monorepo Typecheck
+        run: npm run typecheck:all
+
+      - name: Build SDK & MCP Server
+        run: |
+          npm run build:sdk
+          npm run build:mcp
+
+      - name: Run SDK Tests
+        run: npm run test:sdk
+
+      - name: Run MCP Server Tests
+        run: npm run test:mcp
+
+      - name: Run VS Code Extension Unit Tests
+        run: |
+          npm run --workspace=aimemory-vscode lint
+          npm run --workspace=aimemory-vscode test:unit
+
+      - name: Build Next.js Web Application
+        run: npm run build
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
+          NODE_ENV: "production"

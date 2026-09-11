@@ -24,10 +24,11 @@ function LoginForm() {
   useEffect(() => {
     const current = getApiKey();
     if (current && !justLoggedOut) {
-      setCurrentActiveKey(current);
       verifyApiKey(current)
         .then((res) => {
-          if (!res.valid) {
+          if (res.valid) {
+            setCurrentActiveKey(current);
+          } else {
             setCurrentActiveKey(null);
           }
         })

@@ -2,7 +2,7 @@
   "name": "aimemory-vscode",
   "displayName": "AiMemorySync",
   "description": "Automatic AI project memory — resolves your workspace, fetches relevant context, and lets you manage memories directly in VS Code.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "aimemory",
   "author": "PSG Praveen (@psgpraveen)",
   "license": "MIT",

@@ -3,11 +3,13 @@
 import { useState, useEffect, startTransition } from "react";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { getApiKey, setApiKey, verifyApiKey } from "@/lib/api-client";
 import { Modal } from "@/components/shared/modal";
 
 export function Navbar() {
+  const router = useRouter();
   const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
   // Always start empty to match SSR output (avoids hydration mismatch).
   // useEffect populates from localStorage after first client render.
@@ -40,14 +42,22 @@ export function Navbar() {
 
   function handleSaveKey(e: React.FormEvent) {
     e.preventDefault();
-    const clean = inputKey.trim();
-    setApiKey(clean || null);
-    setCurrentKey(clean);
+    const trimmed = inputKey.trim();
+    if (!trimmed) {
+      setApiKey(null);
+      setCurrentKey("");
+      setKeyStatus("none");
+      setIsKeyModalOpen(false);
+      return;
+    }
+    setApiKey(trimmed);
+    setCurrentKey(trimmed);
+    setKeyStatus("valid");
     setSavedSuccess(true);
     setTimeout(() => {
       setSavedSuccess(false);
       setIsKeyModalOpen(false);
-      window.location.reload();
+      router.refresh();
     }, 400);
   }
 
@@ -56,7 +66,7 @@ export function Navbar() {
     setCurrentKey("");
     setInputKey("");
     setIsKeyModalOpen(false);
-    window.location.href = "/login?loggedOut=true";
+    router.push("/login?loggedOut=true");
   }
 
   function handleLogout() {
@@ -64,7 +74,7 @@ export function Navbar() {
     setCurrentKey("");
     setInputKey("");
     setKeyStatus("none");
-    window.location.href = "/login?loggedOut=true";
+    router.push("/login?loggedOut=true");
   }
 
   return (
