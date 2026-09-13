@@ -23,11 +23,17 @@ export const vscodeIntegration: IntegrationDefinition = {
     {
       id: "install-extension",
       stepNumber: 1,
-      title: "Install VSIX Extension",
-      description: "Install the packaged VSIX extension directly into VS Code.",
+      title: "Download & Install VSIX Extension",
+      description:
+        "Download the pre-packaged VSIX installer and install it directly into VS Code or Cursor.",
+      actionButton: {
+        label: "Download VSIX Extension (v0.1.2)",
+        href: "/api/integrations/vscode/download",
+        actionType: "download",
+      },
       codeSnippet: {
         language: "bash",
-        code: "code --install-extension packages/vscode-extension/aimemory-vscode-0.1.0.vsix",
+        code: "code --install-extension aimemory-vscode-0.1.2.vsix",
         filename: "terminal",
       },
     },

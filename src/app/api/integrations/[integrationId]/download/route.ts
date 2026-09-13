@@ -12,7 +12,27 @@ export async function GET(
   try {
     const { integrationId } = await context.params;
 
-    if (integrationId.toLowerCase() !== "antigravity") {
+    const id = integrationId.toLowerCase();
+
+    if (id === "vscode") {
+      const vsixPath = path.resolve(
+        process.cwd(),
+        "packages/vscode-extension/releases/aimemory-vscode-0.1.2.vsix"
+      );
+      if (fs.existsSync(vsixPath)) {
+        const buffer = fs.readFileSync(vsixPath);
+        return new NextResponse(buffer, {
+          status: 200,
+          headers: {
+            "Content-Type": "application/vsix",
+            "Content-Disposition": 'attachment; filename="aimemory-vscode-0.1.2.vsix"',
+            "Cache-Control": "public, max-age=3600",
+          },
+        });
+      }
+    }
+
+    if (id !== "antigravity") {
       throw new ValidationError(
         `Direct plugin download is currently not supported for '${integrationId}'`
       );
