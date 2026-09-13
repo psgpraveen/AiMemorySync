@@ -4,22 +4,23 @@ import { API_ENDPOINTS } from "@/lib/api/endpoints";
 export const antigravityIntegration: IntegrationDefinition = {
   id: "antigravity",
   name: "Antigravity",
-  tagline: "Native MCP Plugin with Event-Driven Context Loading",
+  tagline: "Native IDE Extension & Automatic Memory Synchronization",
   description:
-    "Connect Antigravity to your AiMemorySync workspace using the Model Context Protocol (MCP). Automatically synchronizes persistent architectural decisions, conventions, and bug solutions directly into agent sessions.",
+    "Connect Antigravity to your AiMemorySync workspace using the native IDE extension (.vsix). Automatically resolves your workspace, streams project memories, and synchronizes persistent architectural context directly into agent sessions.",
   category: "AI_AGENT",
   status: "available",
-  installationType: "mcp",
+  installationType: "extension",
   icon: "antigravity",
-  badge: "Official Plugin",
+  badge: "VSIX Available",
   setupRoute: "/integrations/antigravity/setup",
   documentationUrl: "https://modelcontextprotocol.io",
   features: [
-    "8 Universal MCP AI Tools (resolve, get context, CRUD memories)",
-    "Dynamic Markdown Resource (aimemory://projects/{id}/context)",
-    "Strict Stdio Framing & Zero Database Direct Queries",
-    "Pre-flight Anti-Poisoning Secret Detection",
-    "Multi-session continuity across independent AI chats",
+    "Native Antigravity / VS Code VSIX extension with zero build dependencies",
+    "OS-backed SecretStorage for tenant API keys",
+    "Dedicated tree views for Project Identity, Memories, and Context Budgets",
+    "7-state real-time Status Bar indicator for live workspace sync",
+    "Automatic workspace Git & package manifest identity resolution",
+    "1-Click context clipboard copy & Markdown preview for AI prompts",
   ],
   steps: [
     {
@@ -27,68 +28,70 @@ export const antigravityIntegration: IntegrationDefinition = {
       stepNumber: 1,
       title: "Prerequisites Check",
       description:
-        "Ensure you have Node.js (v18+) and the Antigravity coding environment installed on your local machine.",
+        "Ensure you have Antigravity installed on your machine and an active AiMemorySync account.",
       tips: [
-        "Node.js 18 or higher is required for stdio process management.",
-        "Your AiMemorySync server must be accessible (e.g. http://localhost:3000).",
+        "Antigravity is fully compatible with standard VSIX extension packages.",
+        "Your AiMemorySync server must be accessible (e.g. http://13.206.58.90:3005).",
       ],
     },
     {
       id: "api-key",
       stepNumber: 2,
-      title: "Select or Generate API Key",
+      title: "Generate Tenant API Key",
       description:
-        "The Antigravity MCP server requires a scoped secret API key (read and write permissions) to interact with your projects.",
+        "Generate a secret machine API key with read and write permissions from your dashboard.",
+      actionButton: {
+        label: "Manage API Keys",
+        href: "/settings/api-keys",
+        actionType: "navigate",
+      },
       tips: [
-        "Never commit your API key to public repositories.",
+        "Keys are managed securely in Settings > API Keys.",
         "Use a dedicated key with 'read' and 'write' scopes.",
       ],
     },
     {
-      id: "install-mcp",
+      id: "install-extension",
       stepNumber: 3,
-      title: "Install or Build MCP Server",
+      title: "Download & Install VSIX Extension",
       description:
-        "Build the universal MCP server package inside your local monorepo or install globally.",
+        "Download the pre-built VSIX extension package and install it directly into Antigravity.",
+      actionButton: {
+        label: "Download Extension (v0.1.2 .vsix)",
+        href: "/api/integrations/vscode/download",
+        actionType: "download",
+      },
       codeSnippet: {
         language: "bash",
-        code: "npm run build:mcp",
+        code: "code --install-extension aimemory-vscode-0.1.2.vsix",
         filename: "terminal",
       },
       tips: [
-        "The compiled binary resides at packages/mcp-server/dist/index.js",
-        "It communicates purely over stdio with process.stdout reserved for JSON-RPC.",
+        "In Antigravity: Open Extensions panel (Ctrl+Shift+X) -> click '...' menu -> 'Install from VSIX...'",
+        "Select the downloaded aimemory-vscode-0.1.2.vsix file to install instantly.",
       ],
     },
     {
       id: "configure-antigravity",
       stepNumber: 4,
-      title: "Configure Antigravity MCP Server",
+      title: "Connect Extension to Live Backend",
       description:
-        "Add the AiMemorySync server to your workspace's .agents/plugins/aimemory/mcp_config.json file.",
+        "Configure your API key and server URL inside Antigravity.",
       codeSnippet: {
-        language: "json",
-        code: `{
-  "mcpServers": {
-    "aimemory": {
-      "command": "node",
-      "args": ["packages/mcp-server/dist/index.js"],
-      "env": {
-        "AIMEMORY_API_URL": "http://localhost:3000",
-        "AIMEMORY_API_KEY": "PASTE_YOUR_API_KEY_HERE"
-      }
-    }
-  }
-}`,
-        filename: ".agents/plugins/aimemory/mcp_config.json",
+        language: "text",
+        code: `1. Press Ctrl+Shift+P in Antigravity
+2. Run: "AiMemory: Connect / Set API Key"
+3. Paste your generated secret API key
+4. In Settings (Ctrl+,), set "aimemory.apiUrl" to: http://13.206.58.90:3005`,
+        filename: "Antigravity Setup",
       },
     },
     {
       id: "install-skills",
       stepNumber: 5,
-      title: "Download AiMemory Skills & Rules",
+      title: "Optional: Download Agent Rules & Skills",
       description:
-        "Download and unpack the official generic plugin package into your workspace's .agents/ directory.",
+        "Optional: Unpack the official generic plugin package into your workspace's .agents/ directory for agent guardrails.",
       actionButton: {
         label: "Download Plugin Package (.zip)",
         href: API_ENDPOINTS.INTEGRATIONS.DOWNLOAD("antigravity"),
@@ -105,7 +108,7 @@ export const antigravityIntegration: IntegrationDefinition = {
       stepNumber: 6,
       title: "Verify Live Connection",
       description:
-        "Execute a full-chain verification test to confirm your API key is valid and the MCP server responds correctly.",
+        "Execute a full-chain verification test to confirm your API key is authentic and connected to the backend.",
       actionButton: {
         label: "Run Full Connection Test",
         actionType: "verify",

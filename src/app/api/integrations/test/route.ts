@@ -53,8 +53,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. Verify MCP Readiness (check compiled MCP server executable)
-    if (integration === "antigravity" || integration === "cursor") {
+    // 3. Verify Integration Package Readiness
+    if (integration === "antigravity" || integration === "vscode") {
+      const vsixPath = path.resolve(
+        process.cwd(),
+        "packages/vscode-extension/releases/aimemory-vscode-0.1.2.vsix"
+      );
+      checks.mcpReady = fs.existsSync(vsixPath);
+    } else if (integration === "cursor") {
       const mcpPath = path.resolve(process.cwd(), "packages/mcp-server/dist/index.js");
       checks.mcpReady = fs.existsSync(mcpPath);
     } else {
@@ -70,7 +76,7 @@ export async function POST(request: NextRequest) {
     } else if (!checks.scopesValid) {
       message = "Connection failed: API key lacks required 'read' and 'write' scopes.";
     } else if (!checks.mcpReady) {
-      message = "Connection warning: MCP server binary not found. Run 'npm run build:mcp'.";
+      message = "Connection warning: Integration package binary not found.";
     }
 
     return successResponse({

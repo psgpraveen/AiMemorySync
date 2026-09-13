@@ -168,8 +168,8 @@ export default function AntigravitySetupWizardPage() {
   const stepsList = [
     { num: 1, label: "Account" },
     { num: 2, label: "API Key" },
-    { num: 3, label: "Install" },
-    { num: 4, label: "Configure" },
+    { num: 3, label: "Extension" },
+    { num: 4, label: "Connect" },
     { num: 5, label: "Skills" },
     { num: 6, label: "Verify" },
   ];
@@ -409,7 +409,7 @@ export default function AntigravitySetupWizardPage() {
             </div>
           )}
 
-          {/* STEP 3: Install MCP Server */}
+          {/* STEP 3: Download & Install Extension */}
           {currentStep === 3 && (
             <div className="space-y-5">
               <div className="flex items-center gap-2">
@@ -417,33 +417,43 @@ export default function AntigravitySetupWizardPage() {
                   3
                 </span>
                 <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                  Build or Install the Universal MCP Server
+                  Download & Install AiMemory Extension (.vsix)
                 </h2>
               </div>
               <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                The MCP server executable acts as the standard protocol bridge between Antigravity and your AiMemorySync cloud/local API.
+                Antigravity natively runs standard IDE extensions. Download the official AiMemorySync extension package and install it directly.
               </p>
 
-              <div>
-                <h3 className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-                  Local Workspace Compilation (Recommended)
-                </h3>
-                <CodeBlock
-                  code="npm run build:mcp"
-                  language="bash"
-                  filename="terminal"
-                />
-                <p className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400">
-                  This compiles <code>packages/mcp-server/src/index.ts</code> into <code>packages/mcp-server/dist/index.js</code> with all SDK dependencies bundled.
-                </p>
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                    AiMemorySync Native Extension (v0.1.2)
+                  </h3>
+                  <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                    Includes automatic workspace discovery, Project & Memory sidebar tree views, OS keychain secret storage, and status bar telemetry.
+                  </p>
+                </div>
+                <a
+                  href="/api/integrations/vscode/download"
+                  download="aimemory-vscode-0.1.2.vsix"
+                  className="rounded bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition shrink-0 shadow-xs"
+                >
+                  Download Extension (.vsix)
+                </a>
               </div>
 
-              <div>
-                <h3 className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-                  Verify Standalone Execution
+              <div className="space-y-3">
+                <h3 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                  How to Install in Antigravity:
                 </h3>
+                <ol className="list-decimal list-inside space-y-1.5 text-xs text-zinc-600 dark:text-zinc-400">
+                  <li>Open the <strong>Extensions</strong> view in Antigravity (press <kbd className="rounded border bg-zinc-100 px-1 py-0.5 text-[10px] dark:bg-zinc-800">Ctrl+Shift+X</kbd> or <kbd className="rounded border bg-zinc-100 px-1 py-0.5 text-[10px] dark:bg-zinc-800">Cmd+Shift+X</kbd>).</li>
+                  <li>Click the <strong>&hellip;</strong> (Views and More Actions) menu in the top right of the Extensions panel.</li>
+                  <li>Click <strong>Install from VSIX...</strong> and select the downloaded <code>aimemory-vscode-0.1.2.vsix</code>.</li>
+                  <li>Alternatively, install directly via your terminal:</li>
+                </ol>
                 <CodeBlock
-                  code="node packages/mcp-server/dist/index.js"
+                  code="code --install-extension aimemory-vscode-0.1.2.vsix"
                   language="bash"
                   filename="terminal"
                 />
@@ -459,47 +469,47 @@ export default function AntigravitySetupWizardPage() {
                   4
                 </span>
                 <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                  Configure Antigravity MCP Server
+                  Connect Extension to Live Backend
                 </h2>
               </div>
               <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                Place this configuration into your workspace at <code>.agents/plugins/aimemory/mcp_config.json</code>.
+                Configure your API key and server URL inside Antigravity so the extension can automatically synchronize your project memories.
               </p>
 
-              {/* Template vs withKey toggle */}
-              <div className="flex items-center gap-3 text-xs">
-                <span className="font-medium text-zinc-700 dark:text-zinc-300">Configuration Format:</span>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="configOption"
-                    checked={configOption === "template"}
-                    onChange={() => setConfigOption("template")}
+              <div className="space-y-4 text-xs">
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-950/40 space-y-2.5">
+                  <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 text-[10px] font-bold">1</span>
+                    Set Your Secret API Key
+                  </h3>
+                  <p className="text-zinc-600 dark:text-zinc-400">
+                    Open the Command Palette in Antigravity (<kbd className="rounded border bg-zinc-100 px-1 py-0.5 text-[10px] dark:bg-zinc-800">Ctrl+Shift+P</kbd>), run:
+                  </p>
+                  <CodeBlock
+                    code="AiMemory: Connect / Set API Key"
+                    language="text"
+                    filename="Command Palette"
                   />
-                  <span>Template (Placeholder)</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="configOption"
-                    checked={configOption === "withKey"}
-                    onChange={() => setConfigOption("withKey")}
-                  />
-                  <span>Embed Active Key</span>
-                </label>
-              </div>
-
-              {configOption === "withKey" && (
-                <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-400">
-                  ⚠️ <strong>Security Warning:</strong> This configuration snippet contains your live secret token. Ensure <code>.agents/</code> or <code>mcp_config.json</code> is included in your <code>.gitignore</code> so it is never committed to Git!
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                    Paste your active secret key generated in Step 2: <code className="font-mono text-[10px] text-emerald-600 dark:text-emerald-400 select-all">{selectedKey || activeKey || "aimem_live_..."}</code>
+                  </p>
                 </div>
-              )}
 
-              <CodeBlock
-                code={mcpConfigCode}
-                language="json"
-                filename=".agents/plugins/aimemory/mcp_config.json"
-              />
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-950/40 space-y-2.5">
+                  <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 text-[10px] font-bold">2</span>
+                    Set Backend Server URL
+                  </h3>
+                  <p className="text-zinc-600 dark:text-zinc-400">
+                    Open Settings (<kbd className="rounded border bg-zinc-100 px-1 py-0.5 text-[10px] dark:bg-zinc-800">Ctrl+,</kbd>), search for <strong>aimemory.apiUrl</strong>, and set it to:
+                  </p>
+                  <CodeBlock
+                    code={serverOrigin}
+                    language="text"
+                    filename="Settings: aimemory.apiUrl"
+                  />
+                </div>
+              </div>
             </div>
           )}
 
@@ -626,7 +636,7 @@ export default function AntigravitySetupWizardPage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-zinc-700 dark:text-zinc-300">4. MCP Server Binary Ready</span>
+                      <span className="text-zinc-700 dark:text-zinc-300">4. Integration Extension Package Ready</span>
                       <span className={testResult.checks.mcpReady ? "text-emerald-600 font-bold" : "text-red-600 font-bold"}>
                         {testResult.checks.mcpReady ? "✓ PASS" : "✕ FAIL"}
                       </span>
