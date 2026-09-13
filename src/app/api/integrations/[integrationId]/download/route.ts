@@ -6,7 +6,7 @@ import fs from "fs";
 import path from "path";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ integrationId: string }> }
 ) {
   try {
@@ -20,6 +20,9 @@ export async function GET(
 
     const zip = new SimpleZipBuilder();
 
+    const origin =
+      request.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
     // 1. Generic mcp_config.json
     const mcpConfig = JSON.stringify(
       {
@@ -28,7 +31,7 @@ export async function GET(
             command: "node",
             args: ["packages/mcp-server/dist/index.js"],
             env: {
-              AIMEMORY_API_URL: "http://localhost:3000",
+              AIMEMORY_API_URL: origin,
               AIMEMORY_API_KEY: "PASTE_YOUR_API_KEY_HERE",
             },
           },

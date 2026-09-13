@@ -38,7 +38,12 @@ export default function AntigravitySetupWizardPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestIntegrationResponse | null>(null);
 
+  const [serverOrigin, setServerOrigin] = useState("http://localhost:3000");
+
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      setServerOrigin(window.location.origin);
+    }
     const key = getApiKey();
     if (key) {
       startTransition(() => {
@@ -130,7 +135,7 @@ export default function AntigravitySetupWizardPage() {
                 command: "node",
                 args: ["packages/mcp-server/dist/index.js"],
                 env: {
-                  AIMEMORY_API_URL: "http://localhost:3000",
+                  AIMEMORY_API_URL: serverOrigin,
                   AIMEMORY_API_KEY: selectedKey || activeKey,
                 },
               },
@@ -146,7 +151,7 @@ export default function AntigravitySetupWizardPage() {
                 command: "node",
                 args: ["packages/mcp-server/dist/index.js"],
                 env: {
-                  AIMEMORY_API_URL: "http://localhost:3000",
+                  AIMEMORY_API_URL: serverOrigin,
                   AIMEMORY_API_KEY: "PASTE_YOUR_API_KEY_HERE",
                 },
               },
