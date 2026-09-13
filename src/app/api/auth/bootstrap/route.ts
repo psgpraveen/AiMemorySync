@@ -9,9 +9,7 @@ import { ForbiddenError } from "@/lib/errors";
  */
 export async function POST() {
   try {
-    if (process.env.NODE_ENV === "production") {
-      throw new ForbiddenError("Bootstrap key generation is strictly forbidden in production");
-    }
+    throw new ForbiddenError("Bootstrap key generation is permanently disabled.");
 
     const result = await generateApiKey({
       name: `Local Developer Key (${new Date().toLocaleDateString()})`,

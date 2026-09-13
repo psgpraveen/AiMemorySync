@@ -13,7 +13,7 @@ function LoginForm() {
   const redirectPath = searchParams.get("redirect") || "/projects";
   const justLoggedOut = searchParams.get("loggedOut") === "true";
 
-  const { login, devBootstrap, setMachineApiKey } = useAuth();
+  const { login } = useAuth();
 
   // Human login form state
   const [email, setEmail] = useState("");
@@ -21,14 +21,6 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [, startTransition] = useTransition();
-
-  // Machine / Developer token state (clearly separated secondary flow)
-  const [showMachineAccess, setShowMachineAccess] = useState(false);
-  const [machineToken, setMachineToken] = useState("");
-  const [machineLoading, setMachineLoading] = useState(false);
-  const [machineError, setMachineError] = useState<string | null>(null);
-
-  const isDev = process.env.NODE_ENV !== "production";
 
   async function handleHumanLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -57,58 +49,6 @@ function LoginForm() {
         setError("Sign in failed. Please check your credentials.");
       }
       setLoading(false);
-    }
-  }
-
-  async function handleDevBootstrap() {
-    setLoading(true);
-    setError(null);
-
-    try {
-      await devBootstrap();
-      startTransition(() => {
-        router.push(redirectPath);
-        router.refresh();
-      });
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Developer bootstrap failed.");
-      }
-      setLoading(false);
-    }
-  }
-
-  async function handleMachineTokenConnect(e: React.FormEvent) {
-    e.preventDefault();
-    const cleanKey = machineToken.trim();
-    if (!cleanKey) {
-      setMachineError("Please enter your Bearer API token.");
-      return;
-    }
-
-    setMachineLoading(true);
-    setMachineError(null);
-
-    try {
-      const isValid = await setMachineApiKey(cleanKey);
-      if (isValid) {
-        startTransition(() => {
-          router.push(redirectPath);
-          router.refresh();
-        });
-      } else {
-        setMachineError("Invalid or revoked API key.");
-      }
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setMachineError(err.message);
-      } else {
-        setMachineError("Verification failed.");
-      }
-    } finally {
-      setMachineLoading(false);
     }
   }
 
@@ -219,73 +159,6 @@ function LoginForm() {
         >
           Create Workspace
         </Link>
-      </div>
-
-      {/* Local Developer 1-Click Bootstrap */}
-      {isDev && (
-        <div className="mt-6 pt-5 border-t border-slate-100">
-          <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 text-left">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                Local Dev Quick Sign-In
-              </span>
-              <span className="text-[9px] uppercase tracking-wider font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                Dev Only
-              </span>
-            </div>
-            <p className="mt-1 text-[11px] text-amber-800">
-              Sign into <code className="font-mono text-amber-950 font-bold">dev@aimemory.local</code> with instant access to <code className="font-mono text-amber-950">Legacy Workspace</code>.
-            </p>
-            <button
-              type="button"
-              onClick={handleDevBootstrap}
-              disabled={loading}
-              className="mt-2.5 w-full rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-amber-700 transition-all cursor-pointer"
-            >
-              1-Click Dev Sign-In
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Machine & Developer Access Separator */}
-      <div className="mt-6 pt-5 border-t border-slate-100 text-left">
-        <button
-          type="button"
-          onClick={() => setShowMachineAccess(!showMachineAccess)}
-          className="flex items-center justify-between w-full text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
-        >
-          <span>Developer / Machine Token Sign-In</span>
-          <span className="text-[10px] text-slate-400">
-            {showMachineAccess ? "Hide ▲" : "Show ▼"}
-          </span>
-        </button>
-
-        {showMachineAccess && (
-          <form onSubmit={handleMachineTokenConnect} className="mt-3 space-y-2.5">
-            <p className="text-[11px] text-slate-500">
-              Paste a Bearer secret token (<code className="font-mono text-[10px] text-indigo-600">aimem_live_...</code>) for legacy machine testing.
-            </p>
-            {machineError && (
-              <p className="text-[11px] text-rose-600">{machineError}</p>
-            )}
-            <input
-              type="password"
-              value={machineToken}
-              onChange={(e) => setMachineToken(e.target.value)}
-              placeholder="aimem_live_..."
-              className="w-full font-mono text-xs rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-500"
-            />
-            <button
-              type="submit"
-              disabled={machineLoading}
-              className="w-full rounded-lg bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-900 transition-all cursor-pointer"
-            >
-              {machineLoading ? "Verifying..." : "Connect Machine Token"}
-            </button>
-          </form>
-        )}
       </div>
     </div>
   );

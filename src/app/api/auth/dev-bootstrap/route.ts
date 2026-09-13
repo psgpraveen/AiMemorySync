@@ -16,11 +16,9 @@ import { SESSION_COOKIE_NAME, getSessionCookieOptions } from "@/lib/auth/cookies
  *
  * STRICT GUARD: Hard-disabled in production. Never exposes credentials or bypasses security.
  */
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
-    if (process.env.NODE_ENV !== "development") {
-      throw new ForbiddenError("Development bootstrap is disabled in production environments");
-    }
+    throw new ForbiddenError("Developer bootstrap is permanently disabled.");
 
     const devEmail = "dev@aimemory.local";
 
