@@ -56,6 +56,7 @@ export function registerAuthCommands(
         // Invalidate resolution cache so all providers refresh with new credentials
         lifecycle.invalidateCache();
         projectsProvider.clear();
+        projectsProvider.setAuthenticated(true);
         memoriesProvider.clear();
         contextProvider.clear();
 
@@ -156,6 +157,7 @@ export function registerAuthCommands(
       // Invalidate resolution cache so all providers refresh with new credentials
       lifecycle.invalidateCache();
       projectsProvider.clear();
+      projectsProvider.setAuthenticated(true);
       memoriesProvider.clear();
       contextProvider.clear();
 
@@ -192,6 +194,7 @@ export function registerAuthCommands(
 
       lifecycle.invalidateCache();
       projectsProvider.clear();
+      projectsProvider.setAuthenticated(false);
       memoriesProvider.clear();
       contextProvider.clear();
       statusBar.setDisconnected();
