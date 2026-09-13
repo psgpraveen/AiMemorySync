@@ -140,7 +140,7 @@ export function Navbar() {
 
             {/* Developer Machine API Key Trigger (Secondary) */}
             <button
-              onClick={() => setIsKeyModalOpen(true)}
+              onClick={openKeyModal}
               className="hidden lg:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 transition shadow-2xs"
               title="Configure Machine API Key"
             >
