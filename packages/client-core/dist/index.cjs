@@ -241,6 +241,12 @@ var HttpClient = class {
     this.logger = config.logger;
     this.events = config.events;
   }
+  setBaseUrl(url) {
+    this.baseUrl = url.replace(/\/+$/, "");
+  }
+  getBaseUrl() {
+    return this.baseUrl;
+  }
   /**
    * Executes a typed HTTP request with automatic timeout, resilience retries, envelope unwrapping, and error mapping.
    */
@@ -540,6 +546,25 @@ var AuthModule = class {
     return this.http.request(`/api/auth/keys/${encodeURIComponent(id)}/revoke`, {
       method: "POST"
     });
+  }
+  /**
+   * Authenticates with user credentials, automatically provisions an API key for this client,
+   * stores it in secure storage, and sets it on the client for subsequent requests.
+   */
+  async login(payload) {
+    const result = await this.http.request("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: payload.email,
+        password: payload.password,
+        generateKey: payload.generateKey ?? true,
+        clientName: payload.clientName || "AiMemory Client"
+      })
+    });
+    if (result.apiKey) {
+      await this.setApiKey(result.apiKey);
+    }
+    return result;
   }
 };
 
@@ -876,6 +901,18 @@ var AiMemoryClient = class {
     this.projects = new ProjectsModule(this.http, config.cache, this.events);
     this.memories = new MemoriesModule(this.http, config.cache, this.events);
     this.context = new ContextModule(this.http, config.cache);
+  }
+  /**
+   * Dynamically updates the base URL for subsequent HTTP requests.
+   */
+  setBaseUrl(url) {
+    this.http.setBaseUrl(url);
+  }
+  /**
+   * Returns the current base URL.
+   */
+  getBaseUrl() {
+    return this.http.getBaseUrl();
   }
 };
 

@@ -103,9 +103,9 @@ export class StatusBarManager {
 
     switch (state) {
       case "disconnected":
-        this.item.text = "$(circle-slash) AiMemory";
-        this.item.tooltip = "AiMemorySync: No API Key configured. Click to connect.";
-        this.item.command = COMMANDS.SET_API_KEY;
+        this.item.text = "$(sign-in) AiMemory: Sign In";
+        this.item.tooltip = "AiMemorySync: Not connected. Click to sign in and connect.";
+        this.item.command = COMMANDS.LOGIN;
         this.item.backgroundColor = undefined;
         break;
 

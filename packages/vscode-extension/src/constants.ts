@@ -10,9 +10,11 @@
 // Command IDs (must match package.json contributes.commands)
 // -----------------------------------------------------------------
 export const COMMANDS = {
+  LOGIN: "aimemory.login",
   SET_API_KEY: "aimemory.setApiKey",
   REMOVE_API_KEY: "aimemory.removeApiKey",
   CHECK_CONNECTION: "aimemory.checkConnection",
+  SET_SERVER_URL: "aimemory.setServerUrl",
   RESOLVE_PROJECT: "aimemory.resolveProject",
   COPY_CONTEXT: "aimemory.copyContext",
   PREVIEW_CONTEXT: "aimemory.previewContext",

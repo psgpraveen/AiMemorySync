@@ -517,7 +517,7 @@ interface HttpClientConfig {
     events: TypedEventEmitter;
 }
 declare class HttpClient {
-    private readonly baseUrl;
+    private baseUrl;
     private readonly getApiKey;
     private readonly platform;
     private readonly clientId?;
@@ -527,6 +527,8 @@ declare class HttpClient {
     private readonly logger;
     private readonly events;
     constructor(config: HttpClientConfig);
+    setBaseUrl(url: string): void;
+    getBaseUrl(): string;
     /**
      * Executes a typed HTTP request with automatic timeout, resilience retries, envelope unwrapping, and error mapping.
      */
@@ -554,6 +556,34 @@ interface CreateKeyPayload {
 interface CreateKeyResult {
     apiKey: ApiKeyRecord;
     rawKey: string;
+}
+interface LoginPayload {
+    email: string;
+    password: string;
+    generateKey?: boolean;
+    clientName?: string;
+}
+interface LoginResult {
+    message: string;
+    apiKey?: string;
+    user: {
+        id: string;
+        email: string;
+        name: string;
+        createdAt?: string;
+    };
+    activeTenant: {
+        id: string;
+        name: string;
+        slug: string;
+        role?: string;
+    };
+    memberships?: Array<{
+        tenantId: string;
+        name: string;
+        slug: string;
+        role?: string;
+    }>;
 }
 declare class AuthModule {
     private readonly http;
@@ -584,6 +614,11 @@ declare class AuthModule {
      * Revokes an API key immediately (Requires admin scope).
      */
     revokeKey(id: string): Promise<ApiKeyRecord>;
+    /**
+     * Authenticates with user credentials, automatically provisions an API key for this client,
+     * stores it in secure storage, and sets it on the client for subsequent requests.
+     */
+    login(payload: LoginPayload): Promise<LoginResult>;
 }
 
 declare class ProjectsModule {
@@ -682,6 +717,14 @@ declare class AiMemoryClient {
     readonly context: ContextModule;
     private readonly http;
     constructor(options: ClientOptions);
+    /**
+     * Dynamically updates the base URL for subsequent HTTP requests.
+     */
+    setBaseUrl(url: string): void;
+    /**
+     * Returns the current base URL.
+     */
+    getBaseUrl(): string;
 }
 
 interface RetryOptions {
@@ -712,4 +755,4 @@ declare function isRetryableStatus(status: number): boolean;
  */
 declare function sleep(ms: number): Promise<void>;
 
-export { AiMemoryClient, AiMemoryError, type AiMemoryEvents, type ApiErrorResponse, type ApiKeyRecord, type ApiResponse, type AssembledContextResult, type AssembledContextSection, AuthModule, AuthenticationError, AuthorizationError, type CacheAdapter, type CacheOptions, type ClientOptions, ConflictError, ConsoleLogger, ContextModule, type ContextOptions, type CreateKeyPayload, type CreateKeyResult, type CreateMemoryPayload, type CreateProjectPayload, type DiscoverySignals, type DiscoverySource, EphemeralStorageAdapter, type EventHandler, HttpClient, type HttpClientConfig, InMemoryCache, type ListMemoriesFilter, type ListProjectsFilter, type LoggerAdapter, MemoriesModule, type MemoryDto, type MemoryPriority, type MemoryStatus, type MemoryType, NetworkError, NoopLogger, NotFoundError, type PackageManifestSignal, type PaginationOptions, type ProjectCreationSource, type ProjectDto, type ProjectIdentityType, type ProjectStatus, ProjectsModule, RateLimitError, type RequestOptions, type ResolveProjectInput, type ResolveProjectResult, type ResolvedClientConfig, type RetryOptions, type SafeLogMetadata, type SecureStorageAdapter, ServerError, TimeoutError, TypedEventEmitter, type UpdateMemoryPayload, type UpdateProjectPayload, ValidationError, calculateBackoff, isRetryableMethod, isRetryableStatus, parseRetryAfter, resolveConfig, sleep };
+export { AiMemoryClient, AiMemoryError, type AiMemoryEvents, type ApiErrorResponse, type ApiKeyRecord, type ApiResponse, type AssembledContextResult, type AssembledContextSection, AuthModule, AuthenticationError, AuthorizationError, type CacheAdapter, type CacheOptions, type ClientOptions, ConflictError, ConsoleLogger, ContextModule, type ContextOptions, type CreateKeyPayload, type CreateKeyResult, type CreateMemoryPayload, type CreateProjectPayload, type DiscoverySignals, type DiscoverySource, EphemeralStorageAdapter, type EventHandler, HttpClient, type HttpClientConfig, InMemoryCache, type ListMemoriesFilter, type ListProjectsFilter, type LoggerAdapter, type LoginPayload, type LoginResult, MemoriesModule, type MemoryDto, type MemoryPriority, type MemoryStatus, type MemoryType, NetworkError, NoopLogger, NotFoundError, type PackageManifestSignal, type PaginationOptions, type ProjectCreationSource, type ProjectDto, type ProjectIdentityType, type ProjectStatus, ProjectsModule, RateLimitError, type RequestOptions, type ResolveProjectInput, type ResolveProjectResult, type ResolvedClientConfig, type RetryOptions, type SafeLogMetadata, type SecureStorageAdapter, ServerError, TimeoutError, TypedEventEmitter, type UpdateMemoryPayload, type UpdateProjectPayload, ValidationError, calculateBackoff, isRetryableMethod, isRetryableStatus, parseRetryAfter, resolveConfig, sleep };

@@ -118,7 +118,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
       if (isAuthError) {
         statusBar.setDisconnected();
-        projectsProvider.setError("Authentication required. Click 'Set API Key' in the status bar.");
+        projectsProvider.setError("Authentication required. Click to sign in.");
       } else {
         statusBar.setError();
         projectsProvider.setError(msg);
@@ -135,16 +135,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Handle authentication failures from any SDK module
   const unsubUnauthorized = client.events.on("auth:unauthorized", () => {
     statusBar.setDisconnected();
-    projectsProvider.setError("Authentication required. Click 'Set API Key' to connect.");
+    projectsProvider.setError("Authentication required. Click to sign in.");
     lifecycle.invalidateCache();
 
     void vscode.window
       .showWarningMessage(
-        "AiMemorySync: API key is invalid or expired.",
+        "AiMemorySync: Authentication required or session expired.",
+        "Sign In",
         "Enter API Key"
       )
       .then((action) => {
-        if (action === "Enter API Key") {
+        if (action === "Sign In") {
+          void vscode.commands.executeCommand("aimemory.login");
+        } else if (action === "Enter API Key") {
           void vscode.commands.executeCommand("aimemory.setApiKey");
         }
       });

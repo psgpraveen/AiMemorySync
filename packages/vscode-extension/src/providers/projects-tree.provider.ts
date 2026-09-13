@@ -18,9 +18,15 @@ export class ProjectsTreeDataProvider
   private resolveResult: ResolveProjectResult | null = null;
   private isLoading = false;
   private errorMessage: string | null = null;
+  private isAuthenticated = false;
 
   setLoading(loading: boolean): void {
     this.isLoading = loading;
+    this._onDidChangeTreeData.fire();
+  }
+
+  setAuthenticated(authenticated: boolean): void {
+    this.isAuthenticated = authenticated;
     this._onDidChangeTreeData.fire();
   }
 
@@ -28,6 +34,9 @@ export class ProjectsTreeDataProvider
     this.resolveResult = result;
     this.isLoading = false;
     this.errorMessage = null;
+    if (result) {
+      this.isAuthenticated = true;
+    }
     this._onDidChangeTreeData.fire();
   }
 
@@ -41,6 +50,7 @@ export class ProjectsTreeDataProvider
     this.resolveResult = null;
     this.isLoading = false;
     this.errorMessage = null;
+    this.isAuthenticated = false;
     this._onDidChangeTreeData.fire();
   }
 
@@ -63,17 +73,43 @@ export class ProjectsTreeDataProvider
     }
 
     if (this.errorMessage) {
-      return [
-        this.makeItem(this.errorMessage, {
-          description: "Error",
-          tooltip: `Error: ${this.errorMessage}\nCheck output channel for details`,
-          icon: "alert",
-          contextValue: "error",
-        }),
-      ];
+      const isAuth =
+        this.errorMessage.toLowerCase().includes("auth") ||
+        this.errorMessage.toLowerCase().includes("sign in") ||
+        this.errorMessage.toLowerCase().includes("connect");
+
+      const item = this.makeItem(this.errorMessage, {
+        description: isAuth ? "Action Required" : "Error",
+        tooltip: `${this.errorMessage}\nClick to sign in to AiMemorySync`,
+        icon: isAuth ? "sign-in" : "alert",
+        contextValue: isAuth ? "authRequired" : "error",
+      });
+
+      if (isAuth) {
+        item.command = {
+          command: "aimemory.login",
+          title: "AiMemory: Sign In to Account",
+        };
+      }
+
+      return [item];
     }
 
     if (!this.resolveResult) {
+      if (!this.isAuthenticated) {
+        const signInItem = this.makeItem("Sign In to AiMemorySync", {
+          description: "Click to connect",
+          tooltip: "Sign in with your email and password to automatically connect this workspace.",
+          icon: "sign-in",
+          contextValue: "signIn",
+        });
+        signInItem.command = {
+          command: "aimemory.login",
+          title: "AiMemory: Sign In to Account",
+        };
+        return [signInItem];
+      }
+
       return [
         this.makeItem("No project resolved", {
           tooltip:

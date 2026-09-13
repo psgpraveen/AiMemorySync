@@ -26,6 +26,64 @@ export async function showError(
   return vscode.window.showErrorMessage(`AiMemorySync: ${message}`, ...actions);
 }
 
+/** Prompts for user email, returning trimmed string or undefined if cancelled */
+export async function promptEmail(defaultValue?: string): Promise<string | undefined> {
+  const value = await vscode.window.showInputBox({
+    title: "AiMemorySync — Sign In",
+    prompt: "Enter your AiMemorySync account email address",
+    value: defaultValue ?? "",
+    placeHolder: "developer@example.com",
+    ignoreFocusOut: true,
+    validateInput: (val) => {
+      if (!val || !val.trim()) return "Email cannot be empty";
+      if (!val.includes("@") || !val.includes(".")) return "Please enter a valid email address";
+      return null;
+    },
+  });
+
+  return value?.trim();
+}
+
+/** Prompts for user password, returning value or undefined if cancelled */
+export async function promptPassword(): Promise<string | undefined> {
+  const value = await vscode.window.showInputBox({
+    title: "AiMemorySync — Enter Password",
+    prompt: "Enter your account password (transmitted securely over HTTPS/HTTP directly to your AiMemorySync server)",
+    password: true,
+    placeHolder: "••••••••",
+    ignoreFocusOut: true,
+    validateInput: (val) => {
+      if (!val) return "Password cannot be empty";
+      return null;
+    },
+  });
+
+  return value;
+}
+
+/** Prompts for server URL, returning normalized URL or undefined if cancelled */
+export async function promptServerUrl(currentUrl: string): Promise<string | undefined> {
+  const value = await vscode.window.showInputBox({
+    title: "AiMemorySync — Configure Server URL",
+    prompt: "Enter the base URL of your AiMemorySync backend server (e.g. http://13.206.58.90:3005 or http://localhost:3000)",
+    value: currentUrl,
+    placeHolder: "http://localhost:3000",
+    ignoreFocusOut: true,
+    validateInput: (val) => {
+      if (!val || !val.trim()) return "Server URL cannot be empty";
+      try {
+        const parsed = new URL(val.trim());
+        if (!parsed.protocol.startsWith("http")) return "URL must start with http:// or https://";
+      } catch {
+        return "Please enter a valid URL (e.g. http://13.206.58.90:3005)";
+      }
+      return null;
+    },
+  });
+
+  return value ? value.trim().replace(/\/+$/, "") : undefined;
+}
+
 /** Prompts for an API key, returning trimmed value or undefined if cancelled */
 export async function promptApiKey(): Promise<string | undefined> {
   const value = await vscode.window.showInputBox({
