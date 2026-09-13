@@ -678,6 +678,25 @@ var MemoriesModule = class {
     return memories;
   }
   /**
+   * Lists tenant-level memories (projectId = null).
+   */
+  async listTenant(filter) {
+    const filterKey = `${filter?.status ?? "ALL"}_${filter?.type ?? "ALL"}_${filter?.priority ?? "ALL"}`;
+    const cacheKey = `memories:tenant:${filterKey}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached;
+    const query = { scope: "tenant" };
+    if (filter?.status) query.status = filter.status;
+    if (filter?.type) query.type = filter.type;
+    if (filter?.priority) query.priority = filter.priority;
+    const memories = await this.http.request(`/api/memories`, {
+      method: "GET",
+      query
+    });
+    await this.cache.set(cacheKey, memories, { ttlMs: 3e4 });
+    return memories;
+  }
+  /**
    * Retrieves a single memory item by its UUID.
    */
   async get(id) {
@@ -691,19 +710,34 @@ var MemoriesModule = class {
     return memory;
   }
   /**
-   * Creates a new memory record strictly scoped to a project.
+   * Creates a new memory record (scoped to a project if projectId is provided, or tenant-level if null/omitted).
    */
   async create(projectId, payload) {
-    const memory = await this.http.request(
-      `/api/projects/${encodeURIComponent(projectId)}/memories`,
-      {
+    const targetProjectId = projectId ?? payload.projectId ?? null;
+    let memory;
+    if (targetProjectId) {
+      memory = await this.http.request(
+        `/api/projects/${encodeURIComponent(targetProjectId)}/memories`,
+        {
+          method: "POST",
+          body: JSON.stringify(payload)
+        }
+      );
+    } else {
+      memory = await this.http.request(`/api/memories`, {
         method: "POST",
         body: JSON.stringify(payload)
-      }
-    );
-    await this.invalidateProjectMemories(projectId);
+      });
+    }
+    await this.invalidateMemories(targetProjectId);
     this.events.emit("memory:created", { memory });
     return memory;
+  }
+  /**
+   * Creates a tenant-level personal/cross-project memory record (projectId = null).
+   */
+  async createTenant(payload) {
+    return this.create(null, payload);
   }
   /**
    * Updates an existing memory record.
@@ -714,7 +748,7 @@ var MemoriesModule = class {
       body: JSON.stringify(payload)
     });
     await this.cache.delete(`memory:${id}`);
-    await this.invalidateProjectMemories(memory.projectId);
+    await this.invalidateMemories(memory.projectId);
     this.events.emit("memory:updated", { memory });
     return memory;
   }
@@ -726,7 +760,7 @@ var MemoriesModule = class {
       method: "POST"
     });
     await this.cache.delete(`memory:${id}`);
-    await this.invalidateProjectMemories(memory.projectId);
+    await this.invalidateMemories(memory.projectId);
     this.events.emit("memory:deprecated", { memory });
     return memory;
   }
@@ -738,18 +772,25 @@ var MemoriesModule = class {
       method: "DELETE"
     });
     await this.cache.delete(`memory:${id}`);
-    await this.invalidateProjectMemories(memory.projectId);
-    this.events.emit("memory:archived", { memoryId: id, projectId: memory.projectId });
+    await this.invalidateMemories(memory.projectId);
+    this.events.emit("memory:archived", { memoryId: id, projectId: memory.projectId ?? "" });
     return memory;
   }
-  async invalidateProjectMemories(projectId) {
-    if (this.cache.deletePrefix) {
-      await this.cache.deletePrefix(`memories:${projectId}:`);
-      await this.cache.deletePrefix(`context:${projectId}:`);
+  async invalidateMemories(projectId) {
+    if (projectId) {
+      if (this.cache.deletePrefix) {
+        await this.cache.deletePrefix(`memories:${projectId}:`);
+        await this.cache.deletePrefix(`context:${projectId}:`);
+      } else {
+        await this.cache.delete(`context:${projectId}:default`);
+      }
+      this.events.emit("context:updated", { projectId });
     } else {
-      await this.cache.delete(`context:${projectId}:default`);
+      if (this.cache.deletePrefix) {
+        await this.cache.deletePrefix(`memories:tenant:`);
+        await this.cache.deletePrefix(`context:tenant:`);
+      }
     }
-    this.events.emit("context:updated", { projectId });
   }
 };
 
@@ -762,21 +803,25 @@ var ContextModule = class {
   http;
   cache;
   /**
-   * Generates active, token/character-budgeted Markdown AI context for a project.
+   * Generates active, token/character-budgeted Markdown AI context for a project or workspace.
+   * If projectId is provided, combines project memories with workspace memories.
+   * If projectId is omitted or null, returns pure workspace / personal memories.
    */
   async get(projectId, options) {
+    const targetProject = projectId ?? null;
     const budget = options?.budget ?? 8e3;
     const typesKey = options?.types ? [...options.types].sort().join(",") : "ALL";
-    const cacheKey = `context:${projectId}:${budget}:${typesKey}`;
+    const cacheKey = `context:${targetProject ?? "tenant"}:${budget}:${typesKey}`;
     const cached = await this.cache.get(cacheKey);
     if (cached) return cached;
     const query = {};
+    if (targetProject) query.projectId = targetProject;
     if (options?.budget) query.budget = options.budget;
     if (options?.types && options.types.length > 0) {
       query.types = options.types.join(",");
     }
     const raw = await this.http.request(
-      `/api/projects/${encodeURIComponent(projectId)}/context`,
+      targetProject ? `/api/projects/${encodeURIComponent(targetProject)}/context` : `/api/context`,
       {
         method: "GET",
         query

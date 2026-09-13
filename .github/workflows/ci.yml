@@ -34,13 +34,13 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
-      - name: Run Monorepo Typecheck
-        run: npm run typecheck:all
-
       - name: Build SDK & MCP Server
         run: |
           npm run build:sdk
           npm run build:mcp
+
+      - name: Run Monorepo Typecheck
+        run: npm run typecheck:all
 
       - name: Run SDK Tests
         run: npm run test:sdk

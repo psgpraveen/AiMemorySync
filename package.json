@@ -20,7 +20,7 @@
     "typecheck:sdk": "npm run --workspace=@aimemory/client-core typecheck",
     "typecheck:mcp": "npm run --workspace=@aimemory/mcp-server typecheck",
     "typecheck:extension": "npm run --workspace=aimemory-vscode typecheck",
-    "typecheck:all": "npm run typecheck && npm run typecheck:sdk && npm run typecheck:mcp && npm run typecheck:extension",
+    "typecheck:all": "npm run build:sdk && npm run typecheck && npm run typecheck:sdk && npm run typecheck:mcp && npm run typecheck:extension",
     "test:sdk": "npm run --workspace=@aimemory/client-core test",
     "test:mcp": "npm run --workspace=@aimemory/mcp-server test",
     "test:extension": "npm run --workspace=aimemory-vscode test",

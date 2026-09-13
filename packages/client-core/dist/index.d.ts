@@ -276,7 +276,8 @@ type MemoryStatus = "ACTIVE" | "DEPRECATED" | "ARCHIVED";
  */
 interface MemoryDto {
     id: string;
-    projectId: string;
+    tenantId?: string;
+    projectId: string | null;
     type: MemoryType;
     title: string;
     content: string;
@@ -287,9 +288,10 @@ interface MemoryDto {
     updatedAt: string;
 }
 /**
- * Payload for creating a new memory strictly scoped to a project.
+ * Payload for creating a new memory (project-scoped or tenant-level).
  */
 interface CreateMemoryPayload {
+    projectId?: string | null;
     type: MemoryType;
     title: string;
     content: string;
@@ -306,9 +308,11 @@ interface UpdateMemoryPayload {
     status?: MemoryStatus;
 }
 /**
- * Query filter for listing project memories.
+ * Query filter for listing memories.
  */
 interface ListMemoriesFilter {
+    projectId?: string | null;
+    scope?: "all" | "tenant" | "project";
     status?: MemoryStatus;
     type?: MemoryType;
     priority?: MemoryPriority;
@@ -336,8 +340,8 @@ interface AssembledContextSection {
  * Assembled AI context result payload for a project.
  */
 interface AssembledContextResult {
-    projectId: string;
-    projectName: string;
+    projectId: string | null;
+    projectName: string | null;
     budget: {
         requested: number;
         usedCharacters: number;
@@ -625,13 +629,21 @@ declare class MemoriesModule {
      */
     list(projectId: string, filter?: ListMemoriesFilter): Promise<MemoryDto[]>;
     /**
+     * Lists tenant-level memories (projectId = null).
+     */
+    listTenant(filter?: ListMemoriesFilter): Promise<MemoryDto[]>;
+    /**
      * Retrieves a single memory item by its UUID.
      */
     get(id: string): Promise<MemoryDto>;
     /**
-     * Creates a new memory record strictly scoped to a project.
+     * Creates a new memory record (scoped to a project if projectId is provided, or tenant-level if null/omitted).
      */
-    create(projectId: string, payload: CreateMemoryPayload): Promise<MemoryDto>;
+    create(projectId: string | null | undefined, payload: CreateMemoryPayload): Promise<MemoryDto>;
+    /**
+     * Creates a tenant-level personal/cross-project memory record (projectId = null).
+     */
+    createTenant(payload: CreateMemoryPayload): Promise<MemoryDto>;
     /**
      * Updates an existing memory record.
      */
@@ -644,7 +656,7 @@ declare class MemoriesModule {
      * Soft-archives a memory record.
      */
     archive(id: string): Promise<MemoryDto>;
-    private invalidateProjectMemories;
+    private invalidateMemories;
 }
 
 declare class ContextModule {
@@ -652,9 +664,11 @@ declare class ContextModule {
     private readonly cache;
     constructor(http: HttpClient, cache: CacheAdapter);
     /**
-     * Generates active, token/character-budgeted Markdown AI context for a project.
+     * Generates active, token/character-budgeted Markdown AI context for a project or workspace.
+     * If projectId is provided, combines project memories with workspace memories.
+     * If projectId is omitted or null, returns pure workspace / personal memories.
      */
-    get(projectId: string, options?: ContextOptions): Promise<AssembledContextResult>;
+    get(projectId?: string | null, options?: ContextOptions): Promise<AssembledContextResult>;
 }
 
 /**
