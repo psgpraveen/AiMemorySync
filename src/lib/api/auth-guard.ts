@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextRequest } from "next/server";
 import { validateApiKey, validateSession } from "@/services/auth.service";
 import { checkRateLimit } from "@/lib/api/rate-limiter";
@@ -19,6 +20,21 @@ export interface AuthPrincipal {
   projectId?: string;
   name: string;
   scopes: string[];
+}
+
+/**
+ * Unified Agent Context derived from authenticated server-side identity (AuthPrincipal).
+ * Represents the common operational context for integrations (MCP, VS Code, Cursor, Antigravity, CLI, Web).
+ */
+export interface AgentContext {
+  tenantId: string;
+  projectId?: string;
+  integrationId?: string;
+  integrationType: string;
+  userId?: string;
+  permissions: string[];
+  requestId: string;
+  principal: AuthPrincipal;
 }
 
 export interface AuthGuardOptions {
@@ -172,3 +188,40 @@ export function enforceProjectScope(
     );
   }
 }
+
+/**
+ * Derives a unified AgentContext from an authenticated AuthPrincipal and optional NextRequest.
+ * Extracts client transport metadata (x-aimemory-platform, x-aimemory-client-id, x-request-id)
+ * while strictly preserving authoritative server-side tenantId and projectId.
+ */
+export function createAgentContext(
+  principal: AuthPrincipal,
+  request?: NextRequest
+): AgentContext {
+  const platformHeader = request?.headers.get("x-aimemory-platform");
+  const clientIdHeader = request?.headers.get("x-aimemory-client-id");
+  const reqIdHeader = request?.headers.get("x-request-id");
+
+  const integrationType = platformHeader
+    ? platformHeader.trim().toUpperCase()
+    : principal.authType === "human"
+    ? "WEB"
+    : "API";
+
+  const integrationId =
+    clientIdHeader?.trim() || principal.apiKeyId || principal.userId || undefined;
+
+  const requestId = reqIdHeader?.trim() || crypto.randomUUID();
+
+  return {
+    tenantId: principal.tenantId,
+    projectId: principal.projectId,
+    integrationId,
+    integrationType,
+    userId: principal.userId,
+    permissions: principal.scopes,
+    requestId,
+    principal,
+  };
+}
+

@@ -44,6 +44,8 @@ export async function POST(request: NextRequest) {
           prefix: apiKey.prefix,
           last4: apiKey.last4,
           scopes: apiKey.scopes,
+          tenantId: apiKey.tenantId,
+          projectId: apiKey.projectId ?? undefined,
         };
       } catch (err: unknown) {
         checks.apiKeyValid = false;
