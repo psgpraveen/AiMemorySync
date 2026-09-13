@@ -198,6 +198,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   });
 
+  // Handle configuration changes dynamically
+  const onDidChangeConfiguration = vscode.workspace.onDidChangeConfiguration(
+    (event) => {
+      if (event.affectsConfiguration(CONFIG.API_URL)) {
+        const newApiUrl =
+          vscode.workspace.getConfiguration().get<string>(CONFIG.API_URL) ?? "http://localhost:3000";
+        client.setBaseUrl(newApiUrl);
+        lifecycle.invalidateCache();
+        logger.info(`AiMemorySync server URL updated to: ${newApiUrl}`);
+      }
+      if (event.affectsConfiguration(CONFIG.LOG_LEVEL)) {
+        const newLogLevel =
+          vscode.workspace.getConfiguration().get<"DEBUG" | "INFO" | "WARN" | "ERROR">(CONFIG.LOG_LEVEL, "INFO");
+        logger.setLevel(newLogLevel);
+      }
+    }
+  );
+
   // -----------------------------------------------------------------------
   // Step 7: Register All Commands
   // -----------------------------------------------------------------------
@@ -240,6 +258,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     onDidChangeWorkspaceFolders,
     onDidChangeActiveEditor,
     trustDisposable,
+    onDidChangeConfiguration,
     { dispose: unsubUnauthorized },
     { dispose: unsubRateLimit },
     ...authDisposables,
@@ -255,6 +274,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   if (storedApiKey) {
     // Restore API key into the SDK client (it was lost when the process started)
     await client.auth.setApiKey(storedApiKey);
+    projectsProvider.setAuthenticated(true);
 
     const folder = vscode.workspace.workspaceFolders?.[0];
     if (folder) {
@@ -267,6 +287,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   } else {
     logger.info("No API key configured — extension in disconnected state");
+    projectsProvider.setAuthenticated(false);
     statusBar.setDisconnected();
   }
 
