@@ -3,32 +3,29 @@
 import { useState, useTransition, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { setApiKey, signupWorkspace, ApiError } from "@/lib/api-client";
+import { registerHuman, ApiError } from "@/lib/api-client";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 
 function SignupForm() {
   const router = useRouter();
-  const [workspaceName, setWorkspaceName] = useState("");
-  const [primaryPlatform, setPrimaryPlatform] = useState("Antigravity IDE");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [tenantName, setTenantName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isPending, startTransition] = useTransition();
-  const [createdResult, setCreatedResult] = useState<{ rawKey: string; name: string } | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [, startTransition] = useTransition();
 
-  const platforms = [
-    { id: "Antigravity IDE", label: "Antigravity IDE" },
-    { id: "VS Code", label: "VS Code" },
-    { id: "Cursor", label: "Cursor" },
-    { id: "Universal MCP", label: "Universal MCP" },
-  ];
-
-  async function handleSignup(e: React.FormEvent) {
+  async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
-    const cleanName = workspaceName.trim();
-    if (!cleanName) {
-      setError("Please specify a name for your workspace.");
+    if (!name.trim() || !email.trim() || !password || !tenantName.trim()) {
+      setError("Please fill in all required fields.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters long.");
       return;
     }
 
@@ -36,16 +33,16 @@ function SignupForm() {
     setError(null);
 
     try {
-      const res = await signupWorkspace({
-        workspaceName: cleanName,
-        primaryPlatform,
+      await registerHuman({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        tenantName: tenantName.trim(),
       });
 
-      // Persist the newly generated key
-      setApiKey(res.rawKey);
-      setCreatedResult({
-        rawKey: res.rawKey,
-        name: res.workspaceName,
+      startTransition(() => {
+        router.push("/projects");
+        router.refresh();
       });
     } catch (err: unknown) {
       if (err instanceof ApiError) {
@@ -53,29 +50,14 @@ function SignupForm() {
       } else if (err instanceof Error) {
         setError(err.message);
       } else {
-        setError("Failed to create workspace. Please check your network connection.");
+        setError("Failed to create workspace. Please try again.");
       }
-    } finally {
       setLoading(false);
     }
   }
 
-  function handleCopyKey() {
-    if (!createdResult) return;
-    navigator.clipboard.writeText(createdResult.rawKey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  function handleProceedToDashboard() {
-    startTransition(() => {
-      router.push("/projects");
-      router.refresh();
-    });
-  }
-
   return (
-    <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xl sm:p-8 transition-all">
+    <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xl sm:p-8 transition-all max-w-md w-full mx-auto">
       {/* Brand Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -92,113 +74,113 @@ function SignupForm() {
       </div>
 
       <h1 className="mt-5 text-2xl font-extrabold tracking-tight text-slate-900">
-        Create Your AI Workspace
+        Create Your Account & Workspace
       </h1>
       <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-        Provision persistent project memory and get your universal Bearer API token instantly.
+        Join AiMemorySync to coordinate shared memory across Cursor, Antigravity, and VS Code.
       </p>
 
-      {createdResult ? (
-        <div className="mt-6 space-y-4 rounded-xl border border-emerald-200 bg-emerald-50/70 p-5">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
-            <h3 className="text-xs font-bold text-emerald-900">
-              Workspace & API Token Ready!
-            </h3>
-          </div>
-          <p className="text-xs text-emerald-800 leading-relaxed">
-            Welcome to <strong>{createdResult.name}</strong>. Here is your secret Bearer API token. It has already been saved to your browser session:
-          </p>
-
-          <div className="flex items-center gap-2">
-            <div className="flex-1 rounded-lg border border-emerald-300/80 bg-white p-2.5 font-mono text-xs text-slate-900 break-all select-all shadow-2xs">
-              {createdResult.rawKey}
-            </div>
-            <button
-              type="button"
-              onClick={handleCopyKey}
-              className="rounded-lg bg-emerald-700 px-3 py-2.5 text-xs font-semibold text-white hover:bg-emerald-600 transition shrink-0"
-            >
-              {copied ? "Copied!" : "Copy"}
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleProceedToDashboard}
-            disabled={isPending}
-            className="w-full rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white shadow-xs hover:bg-emerald-500 transition-all hover:scale-[1.01]"
-          >
-            {isPending ? "Entering Dashboard..." : "Enter Projects Dashboard →"}
-          </button>
+      {/* Error Alert */}
+      {error && (
+        <div className="mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50/80 p-3 text-xs text-rose-800">
+          <span className="mt-0.5 flex h-2 w-2 shrink-0 rounded-full bg-rose-500" />
+          <span>{error}</span>
         </div>
-      ) : (
-        <form onSubmit={handleSignup} className="mt-6 space-y-4">
-          <div>
-            <label
-              htmlFor="workspaceName"
-              className="block text-xs font-semibold text-slate-700"
-            >
-              Workspace / Developer Name
-            </label>
-            <div className="relative mt-1.5">
-              <input
-                id="workspaceName"
-                type="text"
-                value={workspaceName}
-                onChange={(e) => setWorkspaceName(e.target.value)}
-                placeholder="e.g. My Next.js Projects or psgpraveen-dev"
-                required
-                className="block w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-hidden transition-all"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Primary AI Environment
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {platforms.map((p) => (
-                <button
-                  type="button"
-                  key={p.id}
-                  onClick={() => setPrimaryPlatform(p.id)}
-                  className={`rounded-xl border py-2 px-3 text-xs font-medium text-left transition ${
-                    primaryPlatform === p.id
-                      ? "border-indigo-500 bg-indigo-50/60 text-indigo-900 font-semibold"
-                      : "border-slate-200 bg-slate-50/50 text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {error && (
-            <div className="rounded-xl border border-red-200 bg-red-50/80 p-3 text-xs text-red-700">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading || isPending}
-            className="w-full rounded-xl bg-linear-to-r from-indigo-600 to-violet-600 py-3 text-xs font-bold text-white shadow-xs hover:from-indigo-500 hover:to-violet-500 disabled:opacity-50 transition-all hover:scale-[1.01]"
-          >
-            {loading || isPending ? "Creating Workspace..." : "Create Workspace & Generate Token"}
-          </button>
-        </form>
       )}
 
-      <div className="mt-6 border-t border-slate-100 pt-4 flex items-center justify-between text-xs text-slate-500">
-        <span>Already have an API token?</span>
+      {/* Registration Form */}
+      <form onSubmit={handleRegister} className="mt-6 space-y-4">
+        <div>
+          <label htmlFor="name" className="block text-xs font-semibold text-slate-700 mb-1.5">
+            Full Name
+          </label>
+          <input
+            id="name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            autoComplete="name"
+            placeholder="Jane Doe"
+            disabled={loading}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-3 focus:ring-indigo-500/10 transition-all"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="email" className="block text-xs font-semibold text-slate-700 mb-1.5">
+            Work Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+            placeholder="jane@company.com"
+            disabled={loading}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-3 focus:ring-indigo-500/10 transition-all"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="password" className="block text-xs font-semibold text-slate-700 mb-1.5">
+            Password (min 8 characters)
+          </label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="new-password"
+            placeholder="••••••••"
+            disabled={loading}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-3 focus:ring-indigo-500/10 transition-all"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="tenantName" className="block text-xs font-semibold text-slate-700 mb-1.5">
+            Workspace Name
+          </label>
+          <input
+            id="tenantName"
+            type="text"
+            value={tenantName}
+            onChange={(e) => setTenantName(e.target.value)}
+            required
+            placeholder="Acme Engineering"
+            disabled={loading}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-3 focus:ring-indigo-500/10 transition-all"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full mt-2 inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 transition-all cursor-pointer"
+        >
+          {loading ? (
+            <span className="flex items-center gap-2">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              Creating Workspace...
+            </span>
+          ) : (
+            "Create Workspace & Account"
+          )}
+        </button>
+      </form>
+
+      {/* Existing Account Link */}
+      <div className="mt-5 text-center text-xs text-slate-500">
+        Already have an account?{" "}
         <Link
           href="/login"
-          className="font-semibold text-indigo-600 hover:text-indigo-500 transition-colors"
+          className="font-semibold text-indigo-600 hover:text-indigo-700 underline underline-offset-2"
         >
-          Sign In Here &rarr;
+          Sign In
         </Link>
       </div>
     </div>
@@ -207,22 +189,13 @@ function SignupForm() {
 
 export default function SignupPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-white mesh-gradient-bg text-slate-900 transition-colors relative overflow-hidden">
-      {/* Ambient Radiant Glow */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[350px] bg-linear-to-tr from-indigo-500/10 via-violet-500/10 to-transparent blur-[90px] pointer-events-none -z-10" />
-
+    <div className="flex min-h-screen flex-col bg-slate-50 font-sans">
       <Navbar />
-
-      <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-16 sm:px-6">
-        <Suspense
-          fallback={
-            <div className="rounded-2xl border border-slate-200 bg-white p-8 animate-pulse h-72" />
-          }
-        >
+      <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+        <Suspense fallback={<div className="h-64 flex items-center justify-center text-xs text-slate-400">Loading...</div>}>
           <SignupForm />
         </Suspense>
       </main>
-
       <Footer />
     </div>
   );

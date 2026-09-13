@@ -15,14 +15,14 @@ interface RouteParams {
 
 /**
  * GET /api/projects/[id]
- * Retrieves a single project by its UUID.
+ * Retrieves a single project by UUID, enforcing tenant boundary and project scoping.
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    await requireAuth(request, { requiredScope: "read" });
+    const principal = await requireAuth(request, { requiredScope: "read" });
 
     const { id } = await params;
-    const project = await getProjectById(id);
+    const project = await getProjectById(id, principal.tenantId, principal.projectId);
 
     return successResponse(project);
   } catch (error) {
@@ -32,15 +32,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 /**
  * PATCH /api/projects/[id]
- * Updates fields (name, slug, description, status) of a project.
+ * Updates fields of a project strictly within the caller's tenant.
  */
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    await requireAuth(request, { requiredScope: "write" });
+    const principal = await requireAuth(request, { requiredScope: "write" });
 
     const { id } = await params;
     const body = await parseJsonBody<UpdateProjectInput>(request);
-    const updated = await updateProject(id, body);
+    const updated = await updateProject(id, body, principal.tenantId, principal.projectId);
 
     return successResponse(updated);
   } catch (error) {
@@ -50,18 +50,17 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 /**
  * DELETE /api/projects/[id]
- * Soft-archives a project by setting status = ARCHIVED.
+ * Soft-archives a project within the caller's tenant. Requires admin scope.
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    await requireAuth(request, { requiredScope: "admin" });
+    const principal = await requireAuth(request, { requiredScope: "admin" });
 
     const { id } = await params;
-    const archived = await archiveProject(id);
+    const archived = await archiveProject(id, principal.tenantId, principal.projectId);
 
     return successResponse(archived);
   } catch (error) {
     return handleApiError(error);
   }
 }
-

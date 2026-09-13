@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { normalizeSlug } from "@/lib/hash";
+import { DEFAULT_LEGACY_TENANT_ID } from "@/config/tenant";
 import {
   normalizeGitRemote,
   normalizeMonorepoSubproject,
@@ -11,7 +12,7 @@ import {
   generateLocalPathDigest,
   extractRepoNameFromGitUrl,
 } from "@/lib/identity-normalizer";
-import { ValidationError } from "@/lib/errors";
+import { ValidationError, ForbiddenError } from "@/lib/errors";
 import {
   resolveProjectSchema,
   type ResolveProjectInput,
@@ -160,22 +161,26 @@ export function deriveProjectName(input: ResolveProjectInput): string {
 }
 
 /**
- * Generates a non-colliding URL-safe slug for automatically discovered projects.
+ * Generates a non-colliding URL-safe slug for automatically discovered projects within a tenant.
  */
-async function generateUniqueAutoSlug(baseName: string): Promise<string> {
+async function generateUniqueAutoSlug(
+  baseName: string,
+  tenantId: string = DEFAULT_LEGACY_TENANT_ID
+): Promise<string> {
   const baseSlug = normalizeSlug(baseName) || "project";
 
-  const existing = await prisma.project.findUnique({
-    where: { slug: baseSlug },
+  const existing = await prisma.project.findFirst({
+    where: { slug: baseSlug, tenantId },
   });
 
   if (!existing) {
     return baseSlug;
   }
 
-  // Find all conflicting slugs starting with baseSlug
+  // Find all conflicting slugs starting with baseSlug in this tenant
   const conflicts = await prisma.project.findMany({
     where: {
+      tenantId,
       slug: {
         startsWith: baseSlug,
       },
@@ -203,7 +208,9 @@ async function generateUniqueAutoSlug(baseName: string): Promise<string> {
  * 5. P2002 unique constraint race-condition recovery
  */
 export async function resolveProjectIdentity(
-  rawInput: ResolveProjectInput
+  rawInput: ResolveProjectInput,
+  tenantId: string = DEFAULT_LEGACY_TENANT_ID,
+  allowedProjectId?: string
 ): Promise<ResolveProjectResult> {
   const parseResult = resolveProjectSchema.safeParse(rawInput);
   if (!parseResult.success) {
@@ -238,6 +245,18 @@ export async function resolveProjectIdentity(
     });
 
     if (existingIdentity && existingIdentity.project) {
+      // Must belong to the caller's tenant! (Never leak or cross into another tenant)
+      if (existingIdentity.project.tenantId !== tenantId) {
+        continue;
+      }
+
+      // If key is project-scoped, enforce project match
+      if (allowedProjectId && existingIdentity.project.id !== allowedProjectId) {
+        throw new ForbiddenError(
+          `API key is scoped exclusively to project '${allowedProjectId}' and cannot access '${existingIdentity.project.id}'`
+        );
+      }
+
       const project = existingIdentity.project;
 
       // Attach any other valid candidates not yet registered as secondary identities
@@ -256,9 +275,16 @@ export async function resolveProjectIdentity(
     }
   }
 
-  // --- 2. AUTO-CREATE NEW PROJECT (when no identity matched) ---
+  // --- 2. AUTO-CREATE NEW PROJECT (when no identity matched in this tenant) ---
+  // Project-scoped machine keys cannot auto-create new projects
+  if (allowedProjectId) {
+    throw new ForbiddenError(
+      "Project-scoped API key cannot resolve or provision new projects"
+    );
+  }
+
   const derivedName = deriveProjectName(input);
-  const derivedSlug = await generateUniqueAutoSlug(derivedName);
+  const derivedSlug = await generateUniqueAutoSlug(derivedName, tenantId);
   const primaryCandidate = candidates[0]; // Highest confidence candidate becomes primary
   const localPathDigest = generateLocalPathDigest(input.signals.localPath);
 
@@ -267,6 +293,7 @@ export async function resolveProjectIdentity(
       // 1. Create Project
       const newProject = await tx.project.create({
         data: {
+          tenantId,
           name: derivedName,
           slug: derivedSlug,
           description: `Automatically discovered via ${input.source.platform} (${primaryCandidate.type})`,
@@ -344,7 +371,7 @@ export async function resolveProjectIdentity(
         },
       });
 
-      if (raceResolved && raceResolved.project) {
+      if (raceResolved && raceResolved.project && raceResolved.project.tenantId === tenantId) {
         // Record source for this concurrent client
         await recordProjectSource(raceResolved.project.id, input.source, input.signals.localPath);
 

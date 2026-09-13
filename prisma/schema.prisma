@@ -1,5 +1,5 @@
 // Prisma schema for AiMemorySync
-// Architecture Reference: docs/DATA_MODEL.md
+// Architecture Reference: docs/DATA_MODEL.md, docs/AUTHENTICATION_TENANT_ARCHITECTURE.md
 
 generator client {
   provider = "prisma-client-js"
@@ -44,20 +44,98 @@ enum ProjectIdentityType {
   PLATFORM_SESSION
 }
 
+enum TenantRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model Tenant {
+  id        String         @id @default(uuid())
+  name      String         @db.VarChar(100)
+  slug      String         @unique @db.VarChar(100)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  members   TenantMember[]
+  projects  Project[]
+  apiKeys   ApiKey[]
+  sessions  Session[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String         @id @default(uuid())
+  email        String         @unique @db.VarChar(255)
+  passwordHash String         @db.VarChar(255)
+  name         String         @db.VarChar(100)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  memberships  TenantMember[]
+  sessions     Session[]
+  createdKeys  ApiKey[]       @relation("CreatedBy")
+
+  @@map("users")
+}
+
+model TenantMember {
+  id        String     @id @default(uuid())
+  tenantId  String
+  userId    String
+  role      TenantRole @default(MEMBER)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+  @@index([tenantId])
+  @@map("tenant_members")
+}
+
+model Session {
+  id               String    @id @default(uuid())
+  sessionTokenHash String    @unique @map("sessionToken") @db.VarChar(128)
+  userId           String
+  tenantId         String
+  expiresAt        DateTime
+  userAgent        String?   @db.Text
+  ipAddress        String?   @db.VarChar(45)
+  createdAt        DateTime  @default(now())
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@index([sessionTokenHash])
+  @@map("sessions")
+}
+
 model Project {
   id              String            @id @default(uuid())
+  tenantId        String
   name            String            @db.VarChar(100)
-  slug            String            @unique @db.VarChar(100)
+  slug            String            @db.VarChar(100)
   description     String?           @db.Text
   status          ProjectStatus     @default(ACTIVE)
   creationSource  String            @default("MANUAL") @db.VarChar(50)
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   memories        Memory[]
   identities      ProjectIdentity[]
   sources         ProjectSource[]
+  apiKeys         ApiKey[]
 
+  @@unique([tenantId, slug])
+  @@index([tenantId])
   @@map("projects")
 }
 
@@ -119,6 +197,9 @@ model Memory {
 
 model ApiKey {
   id          String    @id @default(uuid())
+  tenantId    String
+  projectId   String?
+  createdById String?
   name        String    @db.VarChar(100)
   keyHash     String    @unique @map("key_hash") @db.Char(64)
   prefix      String    @db.VarChar(16)
@@ -130,7 +211,12 @@ model ApiKey {
   expiresAt   DateTime? @map("expires_at")
   revokedAt   DateTime? @map("revoked_at")
 
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdBy   User?     @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
   @@index([keyHash])
+  @@index([tenantId])
+  @@index([projectId])
   @@map("api_keys")
 }
-

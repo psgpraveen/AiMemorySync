@@ -31,6 +31,7 @@ async function acquireEphemeralKey(namePrefix = "MultiSession Continuity Test") 
 
   const created = await prisma.apiKey.create({
     data: {
+      tenantId: "00000000-0000-0000-0000-000000000001",
       name,
       keyHash,
       prefix: "aimem_live_",

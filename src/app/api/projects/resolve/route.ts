@@ -11,18 +11,21 @@ import { requireAuth } from "@/lib/api/auth-guard";
 
 /**
  * POST /api/projects/resolve
+ * Resolves an incoming identity signal payload to an existing Project within the caller's tenant,
+ * or provisions a new one scoped strictly to the tenant.
  *
- * Resolves an incoming identity signal payload (Git remote, monorepo subpath, package manifest,
- * workspace digest, or platform session) to an existing Project or automatically provisions a new one.
- *
- * Returns 200 OK for matched existing projects, or 201 Created for newly provisioned projects.
+ * Project-scoped keys are restricted exclusively to resolving their assigned project.
  */
 export async function POST(request: NextRequest) {
   try {
-    await requireAuth(request, { requiredScope: "write" });
+    const principal = await requireAuth(request, { requiredScope: "write" });
 
     const body = await parseJsonBody<ResolveProjectInput>(request);
-    const result = await resolveProjectIdentity(body);
+    const result = await resolveProjectIdentity(
+      body,
+      principal.tenantId,
+      principal.projectId
+    );
 
     if (result.isNewlyCreated) {
       return createdResponse(result);
@@ -33,4 +36,3 @@ export async function POST(request: NextRequest) {
     return handleApiError(error);
   }
 }
-

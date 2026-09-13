@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { NotFoundError, ValidationError } from "@/lib/errors";
+import { NotFoundError, ValidationError, ForbiddenError } from "@/lib/errors";
 import {
   contextOptionsSchema,
   projectIdSchema,
@@ -102,12 +102,15 @@ export function formatContextMarkdown(
 /**
  * Assembles active project context with deterministic prioritization,
  * character budget enforcement, and type-grouped Markdown formatting.
+ * Enforces tenant ownership and project-scoped API key restrictions.
  *
  * This operation is completely stateless and read-only.
  */
 export async function assembleProjectContext(
   projectId: string,
-  rawOptions?: Partial<ContextOptions>
+  rawOptions?: Partial<ContextOptions>,
+  tenantId?: string,
+  allowedProjectId?: string
 ): Promise<ContextResult> {
   // 1. Validate inputs
   const idValidation = projectIdSchema.safeParse(projectId);
@@ -115,6 +118,13 @@ export async function assembleProjectContext(
     throw new ValidationError(
       "Invalid project ID format",
       idValidation.error.flatten()
+    );
+  }
+
+  // Enforce project-scoped key check
+  if (allowedProjectId && projectId !== allowedProjectId) {
+    throw new ForbiddenError(
+      `API key is scoped exclusively to project '${allowedProjectId}' and cannot access '${projectId}'`
     );
   }
 
@@ -128,9 +138,12 @@ export async function assembleProjectContext(
 
   const { budget, types } = optionsValidation.data;
 
-  // 2. Verify project exists
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
+  // 2. Verify project exists within tenant
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      ...(tenantId && { tenantId }),
+    },
   });
 
   if (!project) {

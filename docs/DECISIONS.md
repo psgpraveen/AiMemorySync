@@ -183,4 +183,31 @@ This file tracks important technical decisions throughout the lifecycle of the A
 - **Reasoning**: Prevents memory poisoning and unauthorized context extraction while avoiding permanent hardcoded secrets or complex premature RBAC.
 - **Consequences**: Additive migration applied (`20260903103353_add_api_keys_and_auth`). All external clients must supply `Authorization: Bearer <api_key>` header.
 
+---
+
+### DECISION 021
+- **Title**: Cursor IDE Dual-Tier Integration Architecture via Universal MCP and Modern Rules (.cursor/rules/*.mdc)
+- **Status**: APPROVED
+- **Context**: Enabling Cursor IDE to participate in the AiMemorySync shared memory ecosystem alongside Antigravity, VS Code, and Web.
+- **Decision**: Adopt a dual-tier integration pattern for Cursor:
+  1. **Tier 1 (Agentic MCP Engine)**: Connect Cursor Composer and Chat to the existing universal MCP server (`@aimemory/mcp-server`) over stdio via `.cursor/mcp.json`. Cursor's AI Agent gains autonomous access to all 8 memory tools and the dynamic context resource (`aimemory://projects/{id}/context`).
+  2. **Tier 2 (Visual IDE Extension)**: Allow installation of `aimemory-vscode` in Cursor for visual sidebar and status bar monitoring.
+  3. **Behavioral Governance**: Author `.cursor/rules/aimemory.mdc` with frontmatter (`alwaysApply: true`, `globs: ["**/*"]`) instructing the Cursor agent on selective context loading and explicit memory capture protocols.
+- **Reasoning**: Maximizes code reuse, avoids duplicate server infrastructure, leverages standard Model Context Protocol, and preserves cross-platform memory consistency without modifying core database models or backend APIs.
+- **Consequences**: Documented in `docs/PHASE_6A_CURSOR_INTEGRATION_ARCHITECTURE.md`. Unlocks Phase 6B onboarding wizard and Phase 6C rules distribution.
+
+---
+
+### DECISION 022
+- **Title**: Tenant-First SaaS Architecture & Separation of Human Web Sessions from Machine API Keys
+- **Status**: APPROVED
+- **Context**: The web application login at `/login` currently prompts humans for raw `aimem_live_*` API secret tokens and stores them in browser `localStorage`. API keys are machine credentials for IDEs and agents (Cursor, Antigravity, VS Code, MCP, CLI) and lack human lifecycle capabilities, user identification, and tenant scoping. Furthermore, the database lacks multi-tenancy, permitting any valid API key to access all projects and memories across the system.
+- **Decision**: Transform AiMemorySync into a tenant-first SaaS platform:
+  1. **Strict Separation of Concerns**: Human authentication uses Email + Password (with standard secure sessions via `HttpOnly`, `SameSite=Lax` cookies). Machine authentication uses scoped Bearer API keys (`aimem_live_*`).
+  2. **Hierarchical Multi-Tenancy**: Introduce `Tenant`, `User`, `TenantMember` (with roles: `OWNER`, `ADMIN`, `MEMBER`, `VIEWER`), and `Session` models. All projects, memories, and API keys are strictly partitioned under a parent `tenantId`.
+  3. **Scoped Machine Keys**: API keys belong to a `tenantId` and can optionally be restricted to a specific `projectId` and least-privilege permission scopes.
+  4. **Dual-Mode Auth Guard**: Update `requireAuth` to accept either an active human web session cookie or a valid machine Bearer key, resolving a unified `AuthContext` with enforced tenant and project boundary checks on all queries.
+- **Reasoning**: Solves the bootstrapping paradox for web users, prevents cross-tenant data leakage (IDOR), eliminates XSS token exposure from `localStorage`, and provides enterprise-grade isolation for AI agent memory access.
+- **Consequences**: Documented in `docs/AUTHENTICATION_TENANT_ARCHITECTURE.md`. Precedes Phase 6B implementation.
+
 

@@ -10,18 +10,17 @@ interface RouteParams {
 
 /**
  * POST /api/memories/:id/deprecate
- * Soft-deprecates a memory record by transitioning status to DEPRECATED.
+ * Soft-deprecates a memory record within the caller's tenant.
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    await requireAuth(request, { requiredScope: "write" });
+    const principal = await requireAuth(request, { requiredScope: "write" });
 
     const { id } = await params;
-    const deprecated = await deprecateMemory(id);
+    const deprecated = await deprecateMemory(id, principal.tenantId, principal.projectId);
 
     return successResponse(deprecated);
   } catch (error) {
     return handleApiError(error);
   }
 }
-

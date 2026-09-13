@@ -418,5 +418,101 @@ export async function signupWorkspace(payload: SignupPayload): Promise<SignupRes
   });
 }
 
+// ============================================================================
+// HUMAN AUTHENTICATION & SECURE SESSION CLIENT API
+// ============================================================================
+
+export interface SafeUserDto {
+  id: string;
+  email: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface ActiveTenantDto {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
+}
+
+export interface TenantMembershipDto {
+  tenantId: string;
+  name: string;
+  slug: string;
+  role: string;
+}
+
+export interface SessionResponse {
+  user: SafeUserDto;
+  activeTenant: ActiveTenantDto;
+  memberships: TenantMembershipDto[];
+}
+
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  message: string;
+  user: SafeUserDto;
+  activeTenant: ActiveTenantDto;
+  memberships: TenantMembershipDto[];
+}
+
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+  tenantName: string;
+}
+
+export interface RegisterResponse {
+  message: string;
+  user: SafeUserDto;
+  activeTenant: ActiveTenantDto;
+}
+
+export async function loginHuman(payload: LoginPayload): Promise<LoginResponse> {
+  return request<LoginResponse>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function registerHuman(payload: RegisterPayload): Promise<RegisterResponse> {
+  return request<RegisterResponse>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function logoutHuman(): Promise<{ message: string }> {
+  return request<{ message: string }>("/api/auth/logout", {
+    method: "POST",
+  });
+}
+
+export async function getCurrentSession(): Promise<SessionResponse> {
+  return request<SessionResponse>("/api/auth/session", {
+    method: "GET",
+  });
+}
+
+export async function switchTenant(tenantId: string): Promise<{ message: string; activeTenant: ActiveTenantDto }> {
+  return request<{ message: string; activeTenant: ActiveTenantDto }>("/api/auth/tenant", {
+    method: "POST",
+    body: JSON.stringify({ tenantId }),
+  });
+}
+
+export async function devBootstrapLogin(): Promise<LoginResponse> {
+  return request<LoginResponse>("/api/auth/dev-bootstrap", {
+    method: "POST",
+  });
+}
+
+
 
 

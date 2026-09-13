@@ -6,16 +6,17 @@ import {
 } from "@/validations/project.validation";
 import { successResponse, createdResponse, parseJsonBody } from "@/lib/api/response";
 import { handleApiError } from "@/lib/api/error-handler";
-import { ValidationError } from "@/lib/errors";
+import { ValidationError, ForbiddenError } from "@/lib/errors";
 import { requireAuth } from "@/lib/api/auth-guard";
 
 /**
  * GET /api/projects
- * Lists projects. Supports optional ?status=ACTIVE | ARCHIVED query filter.
+ * Lists projects scoped strictly to the authenticated tenant.
+ * If principal is a project-scoped machine key, returns only its assigned project.
  */
 export async function GET(request: NextRequest) {
   try {
-    await requireAuth(request, { requiredScope: "read" });
+    const principal = await requireAuth(request, { requiredScope: "read" });
 
     const { searchParams } = new URL(request.url);
     const statusParam = searchParams.get("status");
@@ -32,9 +33,11 @@ export async function GET(request: NextRequest) {
       statusFilter = statusValidation.data;
     }
 
-    const projects = await listProjects(
-      statusFilter ? { status: statusFilter } : undefined
-    );
+    const projects = await listProjects({
+      status: statusFilter,
+      tenantId: principal.tenantId,
+      projectId: principal.projectId,
+    });
 
     return successResponse(projects);
   } catch (error) {
@@ -44,18 +47,24 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/projects
- * Creates a new project with name, optional slug, and optional description.
+ * Creates a new project strictly scoped to the authenticated tenant.
+ * Project-scoped machine keys are prohibited from provisioning new projects (403).
  */
 export async function POST(request: NextRequest) {
   try {
-    await requireAuth(request, { requiredScope: "write" });
+    const principal = await requireAuth(request, { requiredScope: "write" });
+
+    if (principal.projectId) {
+      throw new ForbiddenError(
+        "Project-scoped API key cannot create new projects"
+      );
+    }
 
     const body = await parseJsonBody<CreateProjectInput>(request);
-    const project = await createProject(body);
+    const project = await createProject(body, principal.tenantId);
 
     return createdResponse(project);
   } catch (error) {
     return handleApiError(error);
   }
 }
-

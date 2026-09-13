@@ -4,7 +4,7 @@ import {
   normalizeContent,
   normalizeTitle,
 } from "@/lib/hash";
-import { NotFoundError, ConflictError, ValidationError } from "@/lib/errors";
+import { NotFoundError, ConflictError, ValidationError, ForbiddenError } from "@/lib/errors";
 import {
   createMemorySchema,
   updateMemorySchema,
@@ -20,13 +20,16 @@ import type { Memory, MemoryPriority } from "@prisma/client";
  * Creates a new Memory record for a project.
  *
  * Enforces:
- * 1. Project existence
- * 2. Deterministic content and title normalization
- * 3. SHA-256 content hashing
- * 4. Project-isolated duplicate detection (identical hash in same project rejected)
+ * 1. Project existence within the authenticated tenant
+ * 2. Optional project-scoped API key restrictions
+ * 3. Deterministic content and title normalization
+ * 4. SHA-256 content hashing
+ * 5. Project-isolated duplicate detection (identical hash in same project rejected)
  */
 export async function createMemory(
-  rawInput: CreateMemoryInput
+  rawInput: CreateMemoryInput,
+  tenantId?: string,
+  allowedProjectId?: string
 ): Promise<Memory> {
   const parseResult = createMemorySchema.safeParse(rawInput);
   if (!parseResult.success) {
@@ -39,9 +42,19 @@ export async function createMemory(
   const { projectId, type, title, content, priority, status } =
     parseResult.data;
 
-  // Verify project exists
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
+  // Enforce machine key project scoping
+  if (allowedProjectId && projectId !== allowedProjectId) {
+    throw new ForbiddenError(
+      `API key is scoped exclusively to project '${allowedProjectId}' and cannot create memories in project '${projectId}'`
+    );
+  }
+
+  // Verify project exists and belongs to the caller's tenant
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      ...(tenantId && { tenantId }),
+    },
   });
 
   if (!project) {
@@ -95,9 +108,13 @@ export async function createMemory(
 }
 
 /**
- * Retrieves a single Memory by its UUID.
+ * Retrieves a single Memory by its UUID, enforcing tenant boundary via parent project and optional project scope.
  */
-export async function getMemoryById(id: string): Promise<Memory> {
+export async function getMemoryById(
+  id: string,
+  tenantId?: string,
+  allowedProjectId?: string
+): Promise<Memory> {
   const parseResult = memoryIdSchema.safeParse(id);
   if (!parseResult.success) {
     throw new ValidationError(
@@ -108,13 +125,24 @@ export async function getMemoryById(id: string): Promise<Memory> {
 
   const memory = await prisma.memory.findUnique({
     where: { id },
+    include: {
+      project: true,
+    },
   });
 
-  if (!memory) {
+  // Return 404 if memory doesn't exist OR if its parent project belongs to another tenant (IDOR defense)
+  if (!memory || (tenantId && memory.project.tenantId !== tenantId)) {
     throw new NotFoundError(
       `Memory with ID '${id}' not found`,
       "MEMORY_NOT_FOUND",
       { id }
+    );
+  }
+
+  // If machine key is project-scoped, enforce project match (403)
+  if (allowedProjectId && memory.projectId !== allowedProjectId) {
+    throw new ForbiddenError(
+      `API key is scoped exclusively to project '${allowedProjectId}' and cannot access memory in project '${memory.projectId}'`
     );
   }
 
@@ -133,10 +161,13 @@ const PRIORITY_WEIGHT: Record<MemoryPriority, number> = {
 
 /**
  * Lists memories for a project with optional filters (status, type, priority).
+ * Enforces tenant ownership of the parent project and project-scoped key constraints.
  * Guaranteed ordering: CRITICAL -> HIGH -> NORMAL -> LOW, then updatedAt DESC.
  */
 export async function listMemoriesByProject(
-  filter: ListMemoriesFilter
+  filter: ListMemoriesFilter,
+  tenantId?: string,
+  allowedProjectId?: string
 ): Promise<Memory[]> {
   const parseResult = listMemoriesFilterSchema.safeParse(filter);
   if (!parseResult.success) {
@@ -148,9 +179,19 @@ export async function listMemoriesByProject(
 
   const { projectId, type, priority, status } = parseResult.data;
 
-  // Project existence check
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
+  // Enforce project-scoped key check
+  if (allowedProjectId && projectId !== allowedProjectId) {
+    throw new ForbiddenError(
+      `API key is scoped exclusively to project '${allowedProjectId}' and cannot access project '${projectId}'`
+    );
+  }
+
+  // Project existence check within tenant
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      ...(tenantId && { tenantId }),
+    },
   });
 
   if (!project) {
@@ -181,13 +222,13 @@ export async function listMemoriesByProject(
 }
 
 /**
- * Updates an existing memory record.
- * If type, title, or content changes, the SHA-256 hash is recalculated and
- * verified against project-level duplicate collisions before saving.
+ * Updates an existing memory record within the authorized tenant and project scope.
  */
 export async function updateMemory(
   id: string,
-  rawInput: UpdateMemoryInput
+  rawInput: UpdateMemoryInput,
+  tenantId?: string,
+  allowedProjectId?: string
 ): Promise<Memory> {
   const idResult = memoryIdSchema.safeParse(id);
   if (!idResult.success) {
@@ -205,7 +246,8 @@ export async function updateMemory(
     );
   }
 
-  const existing = await getMemoryById(id);
+  // Verify memory exists within tenant and allowed project scope
+  const existing = await getMemoryById(id, tenantId, allowedProjectId);
 
   const newType = parseResult.data.type ?? existing.type;
   const newTitle =
@@ -266,10 +308,14 @@ export async function updateMemory(
 }
 
 /**
- * Soft-archives a memory item (status = ARCHIVED).
+ * Soft-archives a memory item (status = ARCHIVED) within the authorized tenant.
  */
-export async function archiveMemory(id: string): Promise<Memory> {
-  await getMemoryById(id);
+export async function archiveMemory(
+  id: string,
+  tenantId?: string,
+  allowedProjectId?: string
+): Promise<Memory> {
+  await getMemoryById(id, tenantId, allowedProjectId);
 
   return prisma.memory.update({
     where: { id },
@@ -278,11 +324,14 @@ export async function archiveMemory(id: string): Promise<Memory> {
 }
 
 /**
- * Soft-deprecates a memory item (status = DEPRECATED).
- * Historical knowledge remains retained in database but flagged as deprecated.
+ * Soft-deprecates a memory item (status = DEPRECATED) within the authorized tenant.
  */
-export async function deprecateMemory(id: string): Promise<Memory> {
-  await getMemoryById(id);
+export async function deprecateMemory(
+  id: string,
+  tenantId?: string,
+  allowedProjectId?: string
+): Promise<Memory> {
+  await getMemoryById(id, tenantId, allowedProjectId);
 
   return prisma.memory.update({
     where: { id },

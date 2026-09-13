@@ -6,11 +6,16 @@
 export type DomainErrorCode =
   | "PROJECT_NOT_FOUND"
   | "MEMORY_NOT_FOUND"
+  | "USER_NOT_FOUND"
+  | "TENANT_NOT_FOUND"
+  | "SESSION_NOT_FOUND"
   | "PROJECT_SLUG_CONFLICT"
+  | "USER_ALREADY_EXISTS"
   | "MEMORY_DUPLICATE"
   | "VALIDATION_ERROR"
   | "UNAUTHORIZED"
   | "FORBIDDEN"
+  | "CSRF_DETECTED"
   | "RATE_LIMIT_EXCEEDED"
   | "INTERNAL_ERROR";
 
@@ -28,7 +33,7 @@ export class DomainError extends Error {
 }
 
 export class NotFoundError extends DomainError {
-  constructor(message: string, code: DomainErrorCode, details?: unknown) {
+  constructor(message: string, code: DomainErrorCode = "PROJECT_NOT_FOUND", details?: unknown) {
     super(message, code, details);
   }
 }
@@ -40,7 +45,7 @@ export class ValidationError extends DomainError {
 }
 
 export class ConflictError extends DomainError {
-  constructor(message: string, code: DomainErrorCode, details?: unknown) {
+  constructor(message: string, code: DomainErrorCode = "PROJECT_SLUG_CONFLICT", details?: unknown) {
     super(message, code, details);
   }
 }

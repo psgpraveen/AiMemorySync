@@ -1,27 +1,45 @@
 "use client";
 
 import { useState, useEffect, startTransition } from "react";
-
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-
-import { getApiKey, setApiKey, verifyApiKey } from "@/lib/api-client";
+import {
+  getApiKey,
+  setApiKey,
+  verifyApiKey,
+  getCurrentSession,
+  logoutHuman,
+  switchTenant,
+  SessionResponse,
+} from "@/lib/api-client";
 import { Modal } from "@/components/shared/modal";
 
 export function Navbar() {
   const router = useRouter();
+  const [session, setSession] = useState<SessionResponse | null>(null);
+  const [isSwitchingTenant, setIsSwitchingTenant] = useState(false);
   const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
-  // Always start empty to match SSR output (avoids hydration mismatch).
-  // useEffect populates from localStorage after first client render.
-  const [currentKey, setCurrentKey] = useState<string>("");
   const [inputKey, setInputKey] = useState<string>("");
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [keyStatus, setKeyStatus] = useState<"none" | "valid" | "invalid">("none");
 
   useEffect(() => {
+    // 1. Check human session via HttpOnly cookie
+    getCurrentSession()
+      .then((res) => {
+        startTransition(() => {
+          setSession(res);
+        });
+      })
+      .catch(() => {
+        startTransition(() => {
+          setSession(null);
+        });
+      });
+
+    // 2. Check machine API key in localStorage
     const stored = getApiKey() || "";
     startTransition(() => {
-      setCurrentKey(stored);
       setInputKey(stored);
     });
 
@@ -40,18 +58,49 @@ export function Navbar() {
     }
   }, []);
 
+  async function handleLogout() {
+    try {
+      await logoutHuman();
+    } catch {
+      // Continue even if server logout fails
+    }
+    setApiKey(null);
+    setInputKey("");
+    setKeyStatus("none");
+    setSession(null);
+    router.push("/login?loggedOut=true");
+    router.refresh();
+  }
+
+  async function handleSwitchWorkspace(tenantId: string) {
+    if (!tenantId || tenantId === session?.activeTenant.id) return;
+    setIsSwitchingTenant(true);
+    try {
+      const res = await switchTenant(tenantId);
+      if (session) {
+        setSession({
+          ...session,
+          activeTenant: res.activeTenant,
+        });
+      }
+      router.refresh();
+    } catch {
+      // Switch failed
+    } finally {
+      setIsSwitchingTenant(false);
+    }
+  }
+
   function handleSaveKey(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = inputKey.trim();
     if (!trimmed) {
       setApiKey(null);
-      setCurrentKey("");
       setKeyStatus("none");
       setIsKeyModalOpen(false);
       return;
     }
     setApiKey(trimmed);
-    setCurrentKey(trimmed);
     setKeyStatus("valid");
     setSavedSuccess(true);
     setTimeout(() => {
@@ -59,22 +108,6 @@ export function Navbar() {
       setIsKeyModalOpen(false);
       router.refresh();
     }, 400);
-  }
-
-  function handleClearKey() {
-    setApiKey(null);
-    setCurrentKey("");
-    setInputKey("");
-    setIsKeyModalOpen(false);
-    router.push("/login?loggedOut=true");
-  }
-
-  function handleLogout() {
-    setApiKey(null);
-    setCurrentKey("");
-    setInputKey("");
-    setKeyStatus("none");
-    router.push("/login?loggedOut=true");
   }
 
   return (
@@ -122,33 +155,63 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Active Workspace / Tenant Selector */}
+            {session && (
+              <div className="flex items-center gap-2">
+                {session.memberships.length > 1 ? (
+                  <select
+                    value={session.activeTenant.id}
+                    onChange={(e) => handleSwitchWorkspace(e.target.value)}
+                    disabled={isSwitchingTenant}
+                    className="rounded-lg border border-indigo-200 bg-indigo-50/70 px-2.5 py-1 text-xs font-semibold text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    title="Switch Workspace"
+                  >
+                    {session.memberships.map((m) => (
+                      <option key={m.tenantId} value={m.tenantId}>
+                        {m.name} ({m.role})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-indigo-200/70 bg-indigo-50/70 px-2.5 py-1 text-xs font-medium text-indigo-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+                    <span>{session.activeTenant.name}</span>
+                    <span className="text-[10px] text-indigo-500 uppercase font-bold">
+                      {session.activeTenant.role}
+                    </span>
+                  </span>
+                )}
+
+                <span className="hidden md:inline-block text-xs text-slate-600 font-medium">
+                  {session.user.name}
+                </span>
+              </div>
+            )}
+
+            {/* Developer Machine API Key Trigger (Secondary) */}
             <button
               onClick={() => setIsKeyModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+              className="hidden lg:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 transition shadow-2xs"
+              title="Configure Machine API Key"
             >
               <span
-                className={`h-2 w-2 rounded-full ${
+                className={`h-1.5 w-1.5 rounded-full ${
                   keyStatus === "valid"
-                    ? "bg-emerald-500 shadow-xs shadow-emerald-500/50"
+                    ? "bg-emerald-500"
                     : keyStatus === "invalid"
-                    ? "bg-red-500 animate-pulse"
-                    : "bg-amber-500"
+                    ? "bg-red-500"
+                    : "bg-slate-300"
                 }`}
               />
-              <span className="hidden sm:inline">
-                {keyStatus === "valid"
-                  ? "API Key Active"
-                  : keyStatus === "invalid"
-                  ? "Invalid API Key"
-                  : "Set API Key"}
-              </span>
+              <span>API Key</span>
             </button>
 
-            {keyStatus === "valid" ? (
+            {/* Log Out or Sign In */}
+            {session || keyStatus === "valid" ? (
               <button
                 onClick={handleLogout}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50/50 transition shadow-2xs"
-                title="Log out of current workspace"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50/50 transition shadow-2xs cursor-pointer"
+                title="Log out"
               >
                 <svg
                   className="h-3.5 w-3.5"
@@ -190,75 +253,50 @@ export function Navbar() {
         </div>
       </header>
 
-      {/* API Key Modal */}
+      {/* Machine API Key Modal for Developer Inspection */}
       <Modal
         isOpen={isKeyModalOpen}
         onClose={() => setIsKeyModalOpen(false)}
-        title="API Key Configuration"
+        title="Machine API Key Configuration"
       >
         <form onSubmit={handleSaveKey} className="space-y-4">
-          <p className="text-xs text-zinc-600 dark:text-zinc-400">
-            AiMemorySync API endpoints require a Bearer API key. Enter your secret token below to authenticate web dashboard requests.
+          <p className="text-xs text-slate-600">
+            For local machine or agent testing. Provide a Bearer API token (<code className="font-mono text-[11px] text-indigo-600">aimem_live_...</code>).
           </p>
 
           <div>
-            <label
-              htmlFor="apiKey"
-              className="block text-xs font-medium text-zinc-700 dark:text-zinc-300"
-            >
-              Bearer API Key
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              Active Key
             </label>
             <input
-              id="apiKey"
               type="password"
               value={inputKey}
               onChange={(e) => setInputKey(e.target.value)}
               placeholder="aimem_live_..."
-              className="mt-1 block w-full rounded border border-zinc-300 bg-white px-3 py-1.5 font-mono text-xs text-zinc-900 placeholder-zinc-400 focus:border-zinc-500 focus:outline-hidden dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500"
+              className="w-full font-mono text-xs rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
 
-          <div className="rounded border border-zinc-200 bg-zinc-50 p-2.5 dark:border-zinc-800 dark:bg-zinc-950">
-            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-              Need a key? Run in your terminal:
-            </p>
-            <code className="mt-1 block rounded bg-zinc-200 px-2 py-1 font-mono text-[11px] text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
-              npm run key:generate
-            </code>
-          </div>
-
           {savedSuccess && (
-            <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-              API key saved successfully! Refreshing...
-            </p>
+            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2.5 text-xs text-emerald-800">
+              API key configured successfully.
+            </div>
           )}
 
-          <div className="flex items-center justify-between pt-2">
-            {currentKey ? (
-              <button
-                type="button"
-                onClick={handleClearKey}
-                className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-              >
-                Clear Key
-              </button>
-            ) : <div />}
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsKeyModalOpen(false)}
-                className="rounded border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="rounded bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-              >
-                Save & Apply
-              </button>
-            </div>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsKeyModalOpen(false)}
+              className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+            >
+              Save Key
+            </button>
           </div>
         </form>
       </Modal>

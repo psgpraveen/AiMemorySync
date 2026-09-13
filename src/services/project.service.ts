@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { normalizeSlug } from "@/lib/hash";
-import { NotFoundError, ConflictError, ValidationError } from "@/lib/errors";
+import { NotFoundError, ConflictError, ValidationError, ForbiddenError } from "@/lib/errors";
+import { DEFAULT_LEGACY_TENANT_ID } from "@/config/tenant";
 import {
   createProjectSchema,
   updateProjectSchema,
@@ -12,10 +13,11 @@ import {
 import type { Project, ProjectStatus } from "@prisma/client";
 
 /**
- * Creates a new Project after validating input and verifying slug uniqueness.
+ * Creates a new Project within the specified tenant after validating input and verifying tenant-scoped slug uniqueness.
  */
 export async function createProject(
-  rawInput: CreateProjectInput
+  rawInput: CreateProjectInput,
+  tenantId: string = DEFAULT_LEGACY_TENANT_ID
 ): Promise<Project> {
   const parseResult = createProjectSchema.safeParse(rawInput);
   if (!parseResult.success) {
@@ -37,20 +39,22 @@ export async function createProject(
     );
   }
 
-  const existing = await prisma.project.findUnique({
-    where: { slug: normalizedSlug },
+  // Enforce slug uniqueness within the target tenant
+  const existing = await prisma.project.findFirst({
+    where: { slug: normalizedSlug, tenantId },
   });
 
   if (existing) {
     throw new ConflictError(
-      `Project with slug '${normalizedSlug}' already exists`,
+      `Project with slug '${normalizedSlug}' already exists in this workspace`,
       "PROJECT_SLUG_CONFLICT",
-      { slug: normalizedSlug }
+      { slug: normalizedSlug, tenantId }
     );
   }
 
   return prisma.project.create({
     data: {
+      tenantId,
       name,
       slug: normalizedSlug,
       description: description ?? null,
@@ -60,9 +64,13 @@ export async function createProject(
 }
 
 /**
- * Retrieves a Project by its UUID.
+ * Retrieves a Project by its UUID, enforcing tenant boundary and optional machine key project scope.
  */
-export async function getProjectById(id: string): Promise<Project> {
+export async function getProjectById(
+  id: string,
+  tenantId?: string,
+  allowedProjectId?: string
+): Promise<Project> {
   const parseResult = projectIdSchema.safeParse(id);
   if (!parseResult.success) {
     throw new ValidationError(
@@ -71,8 +79,17 @@ export async function getProjectById(id: string): Promise<Project> {
     );
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id },
+  if (allowedProjectId && id !== allowedProjectId) {
+    throw new ForbiddenError(
+      `API key is scoped exclusively to project '${allowedProjectId}' and cannot access '${id}'`
+    );
+  }
+
+  const project = await prisma.project.findFirst({
+    where: {
+      id,
+      ...(tenantId && { tenantId }),
+    },
   });
 
   if (!project) {
@@ -87,9 +104,12 @@ export async function getProjectById(id: string): Promise<Project> {
 }
 
 /**
- * Retrieves a Project by its unique slug.
+ * Retrieves a Project by its slug within the specified tenant.
  */
-export async function getProjectBySlug(slug: string): Promise<Project> {
+export async function getProjectBySlug(
+  slug: string,
+  tenantId: string = DEFAULT_LEGACY_TENANT_ID
+): Promise<Project> {
   const normalized = normalizeSlug(slug);
   const parseResult = projectSlugSchema.safeParse(normalized);
   if (!parseResult.success) {
@@ -99,15 +119,15 @@ export async function getProjectBySlug(slug: string): Promise<Project> {
     );
   }
 
-  const project = await prisma.project.findUnique({
-    where: { slug: normalized },
+  const project = await prisma.project.findFirst({
+    where: { slug: normalized, tenantId },
   });
 
   if (!project) {
     throw new NotFoundError(
       `Project with slug '${normalized}' not found`,
       "PROJECT_NOT_FOUND",
-      { slug: normalized }
+      { slug: normalized, tenantId }
     );
   }
 
@@ -115,25 +135,33 @@ export async function getProjectBySlug(slug: string): Promise<Project> {
 }
 
 /**
- * Lists projects, optionally filtered by status (defaults to ACTIVE).
+ * Lists projects within the specified tenant, optionally filtered by status and project scope.
  */
 export async function listProjects(filter?: {
   status?: ProjectStatus;
+  tenantId?: string;
+  projectId?: string;
 }): Promise<Project[]> {
   const status = filter?.status ?? "ACTIVE";
 
   return prisma.project.findMany({
-    where: { status },
+    where: {
+      status,
+      ...(filter?.tenantId && { tenantId: filter.tenantId }),
+      ...(filter?.projectId && { id: filter.projectId }),
+    },
     orderBy: { createdAt: "desc" },
   });
 }
 
 /**
- * Updates an existing project's fields. If slug is modified, enforces uniqueness.
+ * Updates an existing project's fields, strictly scoped to the tenant.
  */
 export async function updateProject(
   id: string,
-  rawInput: UpdateProjectInput
+  rawInput: UpdateProjectInput,
+  tenantId?: string,
+  allowedProjectId?: string
 ): Promise<Project> {
   const idResult = projectIdSchema.safeParse(id);
   if (!idResult.success) {
@@ -151,8 +179,8 @@ export async function updateProject(
     );
   }
 
-  // Verify project existence
-  await getProjectById(id);
+  // Verify project exists within tenant and matches project scope
+  await getProjectById(id, tenantId, allowedProjectId);
 
   let newSlug: string | undefined = undefined;
   if (parseResult.data.slug !== undefined) {
@@ -168,13 +196,14 @@ export async function updateProject(
     const slugConflict = await prisma.project.findFirst({
       where: {
         slug: newSlug,
+        ...(tenantId && { tenantId }),
         NOT: { id },
       },
     });
 
     if (slugConflict) {
       throw new ConflictError(
-        `Project with slug '${newSlug}' already exists`,
+        `Project with slug '${newSlug}' already exists in this workspace`,
         "PROJECT_SLUG_CONFLICT",
         { slug: newSlug }
       );
@@ -197,10 +226,14 @@ export async function updateProject(
 }
 
 /**
- * Soft-archives a project by setting its status to ARCHIVED.
+ * Soft-archives a project by setting its status to ARCHIVED within the tenant.
  */
-export async function archiveProject(id: string): Promise<Project> {
-  await getProjectById(id);
+export async function archiveProject(
+  id: string,
+  tenantId?: string,
+  allowedProjectId?: string
+): Promise<Project> {
+  await getProjectById(id, tenantId, allowedProjectId);
 
   return prisma.project.update({
     where: { id },

@@ -1,10 +1,22 @@
 import { NextRequest } from "next/server";
-import { validateApiKey } from "@/services/auth.service";
+import { validateApiKey, validateSession } from "@/services/auth.service";
 import { checkRateLimit } from "@/lib/api/rate-limiter";
-import { UnauthorizedError, RateLimitError } from "@/lib/errors";
+import { UnauthorizedError, ForbiddenError, RateLimitError } from "@/lib/errors";
+import { getSessionTokenFromRequest } from "@/lib/auth/cookies";
+import { verifyCsrfOrigin } from "@/lib/auth/csrf";
+import { DEFAULT_LEGACY_TENANT_ID } from "@/config/tenant";
+import type { TenantRole } from "@prisma/client";
 
 export interface AuthPrincipal {
-  keyId: string;
+  authType: "human" | "machine";
+  mode: "human" | "machine"; // Backward-compatible alias for existing callers
+  userId?: string;
+  tenantId: string;
+  tenantRole?: TenantRole;
+  role?: TenantRole; // Backward-compatible alias for existing callers
+  apiKeyId?: string;
+  keyId?: string; // Backward-compatible alias for existing callers
+  projectId?: string;
   name: string;
   scopes: string[];
 }
@@ -15,14 +27,20 @@ export interface AuthGuardOptions {
 }
 
 /**
- * Enforces API Key authentication and scope authorization on Next.js route handlers.
+ * Enforces unified Dual-Mode Authentication and Tenant/Scope Authorization:
+ * - MODE 1: Machine Bearer API Key (Authorization: Bearer aimem_...)
+ * - MODE 2: Human Session Cookie (aimem_session) with Origin CSRF verification
  *
- * @param request The incoming NextRequest
- * @param options Optional required scope and rate limit overrides
- * @returns Authenticated principal details
- * @throws UnauthorizedError If token is missing, invalid, expired, or revoked
- * @throws ForbiddenError If key lacks required scope
- * @throws RateLimitError If request frequency exceeds rate limit window
+ * Resolves a server-authoritative AuthPrincipal context containing:
+ * - authType ("human" | "machine")
+ * - tenantId (strictly validated, non-null)
+ * - tenantRole (OWNER | ADMIN | MEMBER | VIEWER for human sessions)
+ * - projectId (optional; populated if machine key is project-scoped)
+ * - scopes (authorized capabilities)
+ *
+ * @throws UnauthorizedError If credential is missing, invalid, or expired (401)
+ * @throws ForbiddenError If principal lacks required role/scope or triggers CSRF (403)
+ * @throws RateLimitError If request frequency exceeds rate limit window (429)
  */
 export async function requireAuth(
   request: NextRequest,
@@ -31,46 +49,126 @@ export async function requireAuth(
   const authHeader =
     request.headers.get("authorization") || request.headers.get("x-api-key");
 
-  // 1. Development-only anonymous bypass (strictly disabled in production)
-  if (!authHeader) {
-    if (
-      process.env.NODE_ENV === "development" &&
-      process.env.ALLOW_DEV_ANONYMOUS_AUTH === "true"
-    ) {
-      return {
-        keyId: "dev-anonymous-key",
-        name: "Development Anonymous Principal",
-        scopes: ["read", "write", "admin"],
-      };
+  // =========================================================================
+  // MODE 1: MACHINE BEARER API KEY (MCP, IDE extensions, SDK, CLI)
+  // =========================================================================
+  if (authHeader) {
+    const rawToken = authHeader.startsWith("Bearer ")
+      ? authHeader.substring(7).trim()
+      : authHeader.trim();
+
+    const apiKey = await validateApiKey(rawToken, options?.requiredScope);
+
+    // Rate limit check per API key ID
+    const limit = options?.rateLimit ?? (options?.requiredScope === "write" ? 60 : 120);
+    const rateLimitResult = checkRateLimit(apiKey.id, limit, 60000);
+
+    if (!rateLimitResult.isAllowed) {
+      const retrySecs = Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000);
+      throw new RateLimitError(
+        `Rate limit exceeded. Maximum ${limit} requests per minute. Retry in ${retrySecs}s.`
+      );
     }
 
-    throw new UnauthorizedError(
-      "Authentication required. Provide 'Authorization: Bearer <api_key>'"
-    );
+    return {
+      authType: "machine",
+      mode: "machine",
+      apiKeyId: apiKey.id,
+      keyId: apiKey.id,
+      tenantId: apiKey.tenantId,
+      projectId: apiKey.projectId ?? undefined,
+      name: apiKey.name,
+      scopes: apiKey.scopes,
+    };
   }
 
-  // 2. Extract raw token
-  const rawToken = authHeader.startsWith("Bearer ")
-    ? authHeader.substring(7).trim()
-    : authHeader.trim();
+  // =========================================================================
+  // MODE 2: HUMAN SESSION COOKIE (Web Dashboard)
+  // =========================================================================
+  const sessionToken = getSessionTokenFromRequest(request);
+  if (sessionToken) {
+    // State-changing requests authenticated via session cookie must pass Origin CSRF check
+    verifyCsrfOrigin(request);
 
-  // 3. Validate key against database & verify scopes
-  const apiKey = await validateApiKey(rawToken, options?.requiredScope);
+    const sessionContext = await validateSession(sessionToken);
+    if (!sessionContext) {
+      throw new UnauthorizedError("Session has expired. Please sign in again.");
+    }
 
-  // 4. Rate limit check per API key ID
-  const limit = options?.rateLimit ?? (options?.requiredScope === "write" ? 60 : 120);
-  const rateLimitResult = checkRateLimit(apiKey.id, limit, 60000);
+    // Role-based scope resolution for human tenant members
+    const userRole = sessionContext.activeTenant.role;
+    const humanScopes: string[] =
+      userRole === "OWNER" || userRole === "ADMIN"
+        ? ["read", "write", "admin"]
+        : userRole === "MEMBER"
+        ? ["read", "write"]
+        : ["read"]; // VIEWER is read-only
 
-  if (!rateLimitResult.isAllowed) {
-    const retrySecs = Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000);
-    throw new RateLimitError(
-      `Rate limit exceeded. Maximum ${limit} requests per minute. Retry in ${retrySecs}s.`
-    );
+    if (options?.requiredScope && !humanScopes.includes(options.requiredScope)) {
+      throw new ForbiddenError(
+        `Action requires '${options.requiredScope}' permission (your workspace role is '${userRole}')`
+      );
+    }
+
+    // Rate limit check per User ID
+    const limit = options?.rateLimit ?? (options?.requiredScope === "write" ? 60 : 120);
+    const rateLimitResult = checkRateLimit(sessionContext.user.id, limit, 60000);
+
+    if (!rateLimitResult.isAllowed) {
+      const retrySecs = Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000);
+      throw new RateLimitError(
+        `Rate limit exceeded. Maximum ${limit} requests per minute. Retry in ${retrySecs}s.`
+      );
+    }
+
+    return {
+      authType: "human",
+      mode: "human",
+      userId: sessionContext.user.id,
+      tenantId: sessionContext.activeTenant.id,
+      tenantRole: userRole,
+      role: userRole,
+      name: sessionContext.user.name,
+      scopes: humanScopes,
+    };
   }
 
-  return {
-    keyId: apiKey.id,
-    name: apiKey.name,
-    scopes: apiKey.scopes,
-  };
+  // =========================================================================
+  // DEVELOPMENT-ONLY ANONYMOUS BYPASS (Strictly disabled in production)
+  // =========================================================================
+  if (
+    process.env.NODE_ENV === "development" &&
+    process.env.ALLOW_DEV_ANONYMOUS_AUTH === "true"
+  ) {
+    return {
+      authType: "machine",
+      mode: "machine",
+      apiKeyId: "dev-anonymous-key",
+      keyId: "dev-anonymous-key",
+      tenantId: DEFAULT_LEGACY_TENANT_ID,
+      name: "Development Anonymous Principal",
+      scopes: ["read", "write", "admin"],
+    };
+  }
+
+  throw new UnauthorizedError(
+    "Authentication required. Provide 'Authorization: Bearer <api_key>' or sign in via session cookie."
+  );
+}
+
+/**
+ * Validates that an authenticated principal with a project-scoped machine key
+ * is operating exclusively against its authorized project.
+ *
+ * @throws ForbiddenError If key is scoped to a different project (403)
+ */
+export function enforceProjectScope(
+  principal: AuthPrincipal,
+  targetProjectId: string
+): void {
+  if (principal.projectId && principal.projectId !== targetProjectId) {
+    throw new ForbiddenError(
+      `API key is scoped exclusively to project '${principal.projectId}' and cannot access '${targetProjectId}'`
+    );
+  }
 }

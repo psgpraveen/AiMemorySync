@@ -37,6 +37,7 @@
     "key:generate": "npx tsx scripts/generate-api-key.ts"
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.2.1",
     "@prisma/client": "^6.4.1",
     "next": "16.3.4",
     "react": "19.2.8",
@@ -57,4 +58,3 @@
     "typescript": "^5"
   }
 }
-

@@ -13,11 +13,11 @@ interface RouteParams {
 /**
  * GET /api/projects/:projectId/context
  * Generates active, token/character-budgeted Markdown AI context for a project.
- * Supports optional ?budget=<int> and ?types=<type1,type2> query parameters.
+ * Enforces tenant ownership and machine key project scoping.
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    await requireAuth(request, { requiredScope: "read" });
+    const principal = await requireAuth(request, { requiredScope: "read" });
 
     const { id: projectId } = await params;
 
@@ -39,7 +39,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const contextResult = await assembleProjectContext(
       projectId,
-      queryValidation.data
+      queryValidation.data,
+      principal.tenantId,
+      principal.projectId
     );
 
     return successResponse(contextResult);
@@ -47,4 +49,3 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return handleApiError(error);
   }
 }
-

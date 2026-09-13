@@ -20,16 +20,14 @@ interface RouteParams {
 
 /**
  * GET /api/projects/:projectId/memories
- * Lists memories strictly scoped to the specified project.
- * Supports optional ?status, ?type, ?priority filters.
+ * Lists memories strictly scoped to the specified project, tenant, and project-scoped key.
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    await requireAuth(request, { requiredScope: "read" });
+    const principal = await requireAuth(request, { requiredScope: "read" });
 
     const { id: projectId } = await params;
 
-    // Validate project ID format from URL
     const idValidation = projectIdSchema.safeParse(projectId);
     if (!idValidation.success) {
       throw new ValidationError(
@@ -57,7 +55,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const memories = await listMemoriesByProject(filterValidation.data);
+    const memories = await listMemoriesByProject(
+      filterValidation.data,
+      principal.tenantId,
+      principal.projectId
+    );
 
     return successResponse(memories);
   } catch (error) {
@@ -67,16 +69,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 /**
  * POST /api/projects/:projectId/memories
- * Creates a new memory strictly scoped to the project identified in the URL path.
- * The request body cannot override or conflict with the route's projectId.
+ * Creates a new memory strictly scoped to the project within the caller's tenant.
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    await requireAuth(request, { requiredScope: "write" });
+    const principal = await requireAuth(request, { requiredScope: "write" });
 
     const { id: projectId } = await params;
 
-    // Validate project ID format from URL
     const idValidation = projectIdSchema.safeParse(projectId);
     if (!idValidation.success) {
       throw new ValidationError(
@@ -95,13 +95,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Bind URL path projectId to creation payload
     const memoryPayload: CreateMemoryInput = {
       ...(rawBody as unknown as Omit<CreateMemoryInput, "projectId">),
       projectId,
     };
 
-    // Pre-validate with createMemorySchema before delegating to service
     const schemaValidation = createMemorySchema.safeParse(memoryPayload);
     if (!schemaValidation.success) {
       throw new ValidationError(
@@ -110,11 +108,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const memory = await createMemory(schemaValidation.data);
+    const memory = await createMemory(
+      schemaValidation.data,
+      principal.tenantId,
+      principal.projectId
+    );
 
     return createdResponse(memory);
   } catch (error) {
     return handleApiError(error);
   }
 }
-
