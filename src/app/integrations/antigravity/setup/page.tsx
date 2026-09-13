@@ -32,6 +32,7 @@ export default function AntigravitySetupWizardPage() {
   const [newKeyName, setNewKeyName] = useState("Antigravity MCP Key");
   const [generatingKey, setGeneratingKey] = useState(false);
   const [newlyGeneratedKey, setNewlyGeneratedKey] = useState<string | null>(null);
+  const [keyGenError, setKeyGenError] = useState<string | null>(null);
 
   // Step 4: Config
   const [configOption, setConfigOption] = useState<"template" | "withKey">("template");
@@ -81,7 +82,12 @@ export default function AntigravitySetupWizardPage() {
   }, []);
 
   async function handleGenerateDedicatedKey() {
+    if (!session) {
+      setKeyGenError("Please sign in to generate an API key for your workspace.");
+      return;
+    }
     setGeneratingKey(true);
+    setKeyGenError(null);
     try {
       const res = await createApiKey({
         name: newKeyName,
@@ -95,9 +101,9 @@ export default function AntigravitySetupWizardPage() {
       setAvailableKeys(updated.filter((k) => !k.revokedAt));
     } catch (err: unknown) {
       if (err instanceof Error) {
-        alert(err.message);
+        setKeyGenError(err.message);
       } else {
-        alert("Failed to generate key");
+        setKeyGenError("Failed to generate key");
       }
     } finally {
       setGeneratingKey(false);
@@ -208,23 +214,38 @@ export default function AntigravitySetupWizardPage() {
           <div className="mt-8 flex items-center justify-between">
             {stepsList.map((step) => {
               const isActive = currentStep === step.num;
-              const isPast = currentStep > step.num;
+              const isDone =
+                step.num === 1
+                  ? Boolean(session)
+                  : step.num === 2
+                  ? Boolean(selectedKey || activeKey)
+                  : currentStep > step.num;
+
+              const isDisabled = step.num > 1 && !session;
+
               return (
                 <button
                   key={step.num}
-                  onClick={() => setCurrentStep(step.num)}
-                  className="flex flex-col items-center gap-1.5 focus:outline-hidden"
+                  onClick={() => {
+                    if (isDisabled) return;
+                    setCurrentStep(step.num);
+                  }}
+                  disabled={isDisabled}
+                  className={`flex flex-col items-center gap-1.5 focus:outline-hidden ${
+                    isDisabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"
+                  }`}
+                  title={isDisabled ? "Sign in required to proceed" : undefined}
                 >
                   <div
                     className={`flex h-8 w-8 items-center justify-center rounded-full font-mono text-xs font-bold transition ${
-                      isPast
+                      isDone
                         ? "bg-emerald-600 text-white"
                         : isActive
                         ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 ring-4 ring-zinc-200 dark:ring-zinc-800"
                         : "bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
                     }`}
                   >
-                    {isPast ? "✓" : step.num}
+                    {isDone ? "✓" : step.num}
                   </div>
                   <span
                     className={`text-[11px] font-medium ${
