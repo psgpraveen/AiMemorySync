@@ -369,7 +369,28 @@ export default function AntigravitySetupWizardPage() {
                 The MCP server communicates securely with the AiMemorySync backend using this secret key. We recommend generating a dedicated key with <code>read</code> and <code>write</code> scopes.
               </p>
 
-              {newlyGeneratedKey ? (
+              {keyGenError && (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
+                  {keyGenError}
+                </div>
+              )}
+
+              {!session ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <h3 className="font-semibold text-sm text-amber-950 dark:text-amber-200">Sign in Required</h3>
+                    <p className="text-amber-800/90 dark:text-amber-400">
+                      You must be signed in to your workspace account to generate or select integration API keys.
+                    </p>
+                  </div>
+                  <Link
+                    href="/login?redirect=/integrations/antigravity/setup"
+                    className="rounded-lg bg-amber-600 px-4 py-2 font-medium text-white hover:bg-amber-700 transition shrink-0 shadow-xs"
+                  >
+                    Sign In to Continue &rarr;
+                  </Link>
+                </div>
+              ) : newlyGeneratedKey ? (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20 space-y-3">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
                     <span>✓ Dedicated Antigravity Key Created!</span>
@@ -696,13 +717,22 @@ export default function AntigravitySetupWizardPage() {
             </button>
 
             {currentStep < 6 ? (
-              <button
-                type="button"
-                onClick={() => setCurrentStep((prev) => Math.min(6, prev + 1))}
-                className="rounded bg-zinc-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition"
-              >
-                Next Step &rarr;
-              </button>
+              !session ? (
+                <Link
+                  href="/login?redirect=/integrations/antigravity/setup"
+                  className="rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 transition"
+                >
+                  Sign In to Continue &rarr;
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep((prev) => Math.min(6, prev + 1))}
+                  className="rounded bg-zinc-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition"
+                >
+                  Next Step &rarr;
+                </button>
+              )
             ) : (
               <Link
                 href="/projects"
