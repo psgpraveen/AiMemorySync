@@ -198,6 +198,7 @@ export async function apiFetch<T>(
 
   const response = await fetch(endpoint, {
     method: restOptions.method || "GET",
+    credentials: restOptions.credentials || "include",
     ...restOptions,
     headers: resolvedHeaders,
   });
