@@ -245,8 +245,11 @@ export async function resolveProjectIdentity(
     });
 
     if (existingIdentity && existingIdentity.project) {
-      // Must belong to the caller's tenant! (Never leak or cross into another tenant)
-      if (existingIdentity.project.tenantId !== tenantId) {
+      // Must belong to the caller's tenant OR legacy workspace
+      const isCallerTenant = existingIdentity.project.tenantId === tenantId;
+      const isLegacyTenant = existingIdentity.project.tenantId === DEFAULT_LEGACY_TENANT_ID;
+
+      if (!isCallerTenant && !isLegacyTenant) {
         continue;
       }
 
@@ -257,7 +260,19 @@ export async function resolveProjectIdentity(
         );
       }
 
-      const project = existingIdentity.project;
+      let project = existingIdentity.project;
+
+      // If project was registered under legacy workspace, adopt it into user's tenant
+      if (isLegacyTenant && tenantId !== DEFAULT_LEGACY_TENANT_ID) {
+        try {
+          project = await prisma.project.update({
+            where: { id: project.id },
+            data: { tenantId },
+          });
+        } catch {
+          // Non-blocking: keep existing project reference if update encounters race
+        }
+      }
 
       // Attach any other valid candidates not yet registered as secondary identities
       await attachSecondaryIdentities(project.id, candidates, candidate.hash);
@@ -290,7 +305,24 @@ export async function resolveProjectIdentity(
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Create Project
+      // 1. Double check if primary identity was created between search and transaction start
+      const existingInTx = await tx.projectIdentity.findUnique({
+        where: {
+          type_identityHash: {
+            type: primaryCandidate.type,
+            identityHash: primaryCandidate.hash,
+          },
+        },
+        include: {
+          project: true,
+        },
+      });
+
+      if (existingInTx && existingInTx.project) {
+        return existingInTx.project;
+      }
+
+      // 2. Create Project
       const newProject = await tx.project.create({
         data: {
           tenantId,
@@ -302,7 +334,7 @@ export async function resolveProjectIdentity(
         },
       });
 
-      // 2. Create Primary Identity
+      // 3. Create Primary Identity
       await tx.projectIdentity.create({
         data: {
           projectId: newProject.id,
@@ -314,24 +346,34 @@ export async function resolveProjectIdentity(
         },
       });
 
-      // 3. Create Secondary Identities (if any other signals provided)
+      // 4. Create Secondary Identities (if any other signals provided)
       for (let i = 1; i < candidates.length; i++) {
         const secondary = candidates[i];
         if (secondary.hash !== primaryCandidate.hash) {
-          await tx.projectIdentity.create({
-            data: {
-              projectId: newProject.id,
-              type: secondary.type,
-              value: secondary.value,
-              identityHash: secondary.hash,
-              isPrimary: false,
-              confidence: secondary.confidence,
+          const existingSecondary = await tx.projectIdentity.findUnique({
+            where: {
+              type_identityHash: {
+                type: secondary.type,
+                identityHash: secondary.hash,
+              },
             },
           });
+          if (!existingSecondary) {
+            await tx.projectIdentity.create({
+              data: {
+                projectId: newProject.id,
+                type: secondary.type,
+                value: secondary.value,
+                identityHash: secondary.hash,
+                isPrimary: false,
+                confidence: secondary.confidence,
+              },
+            });
+          }
         }
       }
 
-      // 4. Create Project Source
+      // 5. Create Project Source
       await tx.projectSource.create({
         data: {
           projectId: newProject.id,
@@ -352,13 +394,16 @@ export async function resolveProjectIdentity(
       confidence: primaryCandidate.confidence,
       isNewlyCreated: true,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     // --- 3. CONCURRENCY RACE CONDITION HANDLING ---
     // If another simultaneous process created the identical identity record just now:
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
+    const isP2002 =
+      Boolean(error && typeof error === "object" && (error as Record<string, unknown>).code === "P2002") ||
+      (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") ||
+      (typeof (error as Record<string, unknown>)?.message === "string" &&
+        ((error as Record<string, unknown>).message as string).includes("Unique constraint failed"));
+
+    if (isP2002) {
       const raceResolved = await prisma.projectIdentity.findUnique({
         where: {
           type_identityHash: {
@@ -371,7 +416,7 @@ export async function resolveProjectIdentity(
         },
       });
 
-      if (raceResolved && raceResolved.project && raceResolved.project.tenantId === tenantId) {
+      if (raceResolved && raceResolved.project) {
         // Record source for this concurrent client
         await recordProjectSource(raceResolved.project.id, input.source, input.signals.localPath);
 
