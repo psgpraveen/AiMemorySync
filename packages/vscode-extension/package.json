@@ -145,14 +145,19 @@
     "menus": {
       "view/title": [
         {
+          "command": "aimemory.login",
+          "when": "view == aimemory-projects",
+          "group": "navigation@1"
+        },
+        {
           "command": "aimemory.setApiKey",
           "when": "view == aimemory-projects",
-          "group": "navigation"
+          "group": "navigation@2"
         },
         {
           "command": "aimemory.resolveProject",
           "when": "view == aimemory-projects",
-          "group": "navigation"
+          "group": "navigation@3"
         },
         {
           "command": "aimemory.refreshAll",
