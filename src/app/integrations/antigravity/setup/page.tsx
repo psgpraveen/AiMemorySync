@@ -477,36 +477,41 @@ export default function AntigravitySetupWizardPage() {
               </p>
 
               <div className="space-y-4 text-xs">
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-950/40 space-y-2.5">
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-950/40 space-y-3">
                   <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 text-[10px] font-bold">1</span>
-                    Set Your Secret API Key
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white text-[10px] font-bold">1</span>
+                    Copy Your Secret API Key & Connect
                   </h3>
                   <p className="text-zinc-600 dark:text-zinc-400">
-                    Open the Command Palette in Antigravity (<kbd className="rounded border bg-zinc-100 px-1 py-0.5 text-[10px] dark:bg-zinc-800">Ctrl+Shift+P</kbd>), run:
+                    Copy your dedicated API key generated in Step 2:
+                  </p>
+                  <CodeBlock
+                    code={selectedKey || activeKey || "aimem_live_..."}
+                    language="text"
+                    filename="Your API Key"
+                  />
+                  <p className="text-zinc-600 dark:text-zinc-400">
+                    Next, inside your Antigravity IDE, press <kbd className="rounded border bg-zinc-100 px-1 py-0.5 text-[10px] dark:bg-zinc-800">Ctrl+Shift+P</kbd> (or <kbd className="rounded border bg-zinc-100 px-1 py-0.5 text-[10px] dark:bg-zinc-800">Cmd+Shift+P</kbd>), run this command, and paste your key:
                   </p>
                   <CodeBlock
                     code="AiMemory: Connect / Set API Key"
                     language="text"
                     filename="Command Palette"
                   />
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                    Paste your active secret key generated in Step 2: <code className="font-mono text-[10px] text-emerald-600 dark:text-emerald-400 select-all">{selectedKey || activeKey || "aimem_live_..."}</code>
-                  </p>
                 </div>
 
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-950/40 space-y-2.5">
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-950/40 space-y-3">
                   <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 text-[10px] font-bold">2</span>
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white text-[10px] font-bold">2</span>
                     Set Backend Server URL
                   </h3>
                   <p className="text-zinc-600 dark:text-zinc-400">
-                    Open Settings (<kbd className="rounded border bg-zinc-100 px-1 py-0.5 text-[10px] dark:bg-zinc-800">Ctrl+,</kbd>), search for <strong>aimemory.apiUrl</strong>, and set it to:
+                    In Antigravity, open Settings (<kbd className="rounded border bg-zinc-100 px-1 py-0.5 text-[10px] dark:bg-zinc-800">Ctrl+,</kbd>), search for <strong>aimemory.apiUrl</strong>, and set it to:
                   </p>
                   <CodeBlock
                     code={serverOrigin}
                     language="text"
-                    filename="Settings: aimemory.apiUrl"
+                    filename="aimemory.apiUrl"
                   />
                 </div>
               </div>
