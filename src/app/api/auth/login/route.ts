@@ -8,6 +8,7 @@ import {
   verifyUserPassword,
   createSession,
   selectDeterministicActiveTenant,
+  generateApiKey,
 } from "@/services/auth.service";
 import {
   SESSION_COOKIE_NAME,
@@ -18,6 +19,8 @@ import { z } from "zod";
 const loginSchema = z.object({
   email: z.string().email("Valid email address is required").max(255).trim().toLowerCase(),
   password: z.string().min(1, "Password is required"),
+  generateKey: z.boolean().optional(),
+  clientName: z.string().max(100).optional(),
 });
 
 /**
@@ -78,7 +81,21 @@ export async function POST(request: NextRequest) {
       throw new UnauthorizedError("Failed to select active workspace");
     }
 
-    // 5. Create secure session
+    // 5. If machine API key was requested (e.g. VS Code / Antigravity Extension sign-in), generate one
+    let generatedKeyData: { rawKey: string } | null = null;
+    if (validation.data.generateKey) {
+      const keyName = validation.data.clientName?.trim() || "IDE Extension Key";
+      const keyResult = await generateApiKey({
+        name: keyName,
+        tenantId: activeMembership.tenant.id,
+        createdById: user.id,
+        scopes: ["read", "write", "admin"],
+        environment: process.env.NODE_ENV === "production" ? "live" : "test",
+      });
+      generatedKeyData = { rawKey: keyResult.rawKey };
+    }
+
+    // 6. Create secure session
     const { rawToken } = await createSession({
       userId: user.id,
       tenantId: activeMembership.tenant.id,
@@ -86,9 +103,10 @@ export async function POST(request: NextRequest) {
       ipAddress,
     });
 
-    // 6. Safe response (excluding passwordHash, sessionToken, and secrets)
+    // 7. Safe response (excluding passwordHash, sessionToken, and secrets)
     const response = successResponse({
       message: "Signed in successfully",
+      apiKey: generatedKeyData?.rawKey,
       user: {
         id: user.id,
         email: user.email,
@@ -109,7 +127,7 @@ export async function POST(request: NextRequest) {
       })),
     });
 
-    // 7. Attach HttpOnly session cookie
+    // 8. Attach HttpOnly session cookie
     const cookieOptions = getSessionCookieOptions(request);
     response.cookies.set(SESSION_COOKIE_NAME, rawToken, cookieOptions);
 

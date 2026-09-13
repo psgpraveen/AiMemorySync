@@ -41,7 +41,7 @@ export interface HttpClientConfig {
 }
 
 export class HttpClient {
-  private readonly baseUrl: string;
+  private baseUrl: string;
   private readonly getApiKey: () => Promise<string | null>;
   private readonly platform: string;
   private readonly clientId?: string;
@@ -61,6 +61,14 @@ export class HttpClient {
     this.fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
     this.logger = config.logger;
     this.events = config.events;
+  }
+
+  setBaseUrl(url: string): void {
+    this.baseUrl = url.replace(/\/+$/, "");
+  }
+
+  getBaseUrl(): string {
+    return this.baseUrl;
   }
 
   /**

@@ -27,6 +27,36 @@ export interface CreateKeyResult {
   rawKey: string;
 }
 
+export interface LoginPayload {
+  email: string;
+  password: string;
+  generateKey?: boolean;
+  clientName?: string;
+}
+
+export interface LoginResult {
+  message: string;
+  apiKey?: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    createdAt?: string;
+  };
+  activeTenant: {
+    id: string;
+    name: string;
+    slug: string;
+    role?: string;
+  };
+  memberships?: Array<{
+    tenantId: string;
+    name: string;
+    slug: string;
+    role?: string;
+  }>;
+}
+
 export class AuthModule {
   private inMemoryKey: string | null = null;
 
@@ -101,5 +131,27 @@ export class AuthModule {
     return this.http.request<ApiKeyRecord>(`/api/auth/keys/${encodeURIComponent(id)}/revoke`, {
       method: "POST",
     });
+  }
+
+  /**
+   * Authenticates with user credentials, automatically provisions an API key for this client,
+   * stores it in secure storage, and sets it on the client for subsequent requests.
+   */
+  async login(payload: LoginPayload): Promise<LoginResult> {
+    const result = await this.http.request<LoginResult>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: payload.email,
+        password: payload.password,
+        generateKey: payload.generateKey ?? true,
+        clientName: payload.clientName || "AiMemory Client",
+      }),
+    });
+
+    if (result.apiKey) {
+      await this.setApiKey(result.apiKey);
+    }
+
+    return result;
   }
 }

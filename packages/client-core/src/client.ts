@@ -53,4 +53,18 @@ export class AiMemoryClient {
     this.memories = new MemoriesModule(this.http, config.cache, this.events);
     this.context = new ContextModule(this.http, config.cache);
   }
+
+  /**
+   * Dynamically updates the base URL for subsequent HTTP requests.
+   */
+  setBaseUrl(url: string): void {
+    this.http.setBaseUrl(url);
+  }
+
+  /**
+   * Returns the current base URL.
+   */
+  getBaseUrl(): string {
+    return this.http.getBaseUrl();
+  }
 }
