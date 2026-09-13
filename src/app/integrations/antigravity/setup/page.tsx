@@ -38,12 +38,14 @@ export default function AntigravitySetupWizardPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestIntegrationResponse | null>(null);
 
-  const [serverOrigin, setServerOrigin] = useState("http://localhost:3000");
+  const [serverOrigin] = useState(() => {
+    if (typeof window !== "undefined" && window.location?.origin) {
+      return window.location.origin;
+    }
+    return "http://localhost:3000";
+  });
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setServerOrigin(window.location.origin);
-    }
     const key = getApiKey();
     if (key) {
       startTransition(() => {
