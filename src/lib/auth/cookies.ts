@@ -14,12 +14,91 @@ export interface CookieOptions {
 }
 
 /**
- * Returns standard centralized session cookie options.
+ * Determines whether the connection is secure (HTTPS).
+ *
+ * Checks:
+ * 1. Explicit environment variable `COOKIE_SECURE` ("true" | "false")
+ * 2. Proxy forwarding headers (x-forwarded-proto, cf-visitor, etc.)
+ * 3. Incoming request URL protocol (request.nextUrl.protocol === "https:")
+ * 4. NEXT_PUBLIC_APP_URL / APP_URL protocol
+ *
+ * If the connection is plain HTTP (e.g. AWS EC2 IP address or internal staging),
+ * `secure` MUST be false. Browsers strictly reject Set-Cookie headers with `Secure`
+ * over non-localhost HTTP connections.
  */
-export function getSessionCookieOptions(maxAge: number = SESSION_MAX_AGE_SECONDS): CookieOptions {
+export function isConnectionSecure(request?: NextRequest | Headers | null): boolean {
+  if (process.env.COOKIE_SECURE === "true") return true;
+  if (process.env.COOKIE_SECURE === "false") return false;
+
+  if (request) {
+    const headers = "headers" in request ? request.headers : request;
+    const proto =
+      headers?.get("x-forwarded-proto") ||
+      headers?.get("x-forwarded-protocol") ||
+      headers?.get("x-url-scheme");
+    if (proto) {
+      const primaryProto = proto.split(",")[0].trim().toLowerCase();
+      if (primaryProto === "https") return true;
+      if (primaryProto === "http") return false;
+    }
+
+    const cfVisitor = headers?.get("cf-visitor");
+    if (cfVisitor) {
+      try {
+        const parsed = JSON.parse(cfVisitor);
+        if (parsed.scheme === "https") return true;
+        if (parsed.scheme === "http") return false;
+      } catch {}
+    }
+
+    if ("nextUrl" in request && request.nextUrl?.protocol) {
+      if (request.nextUrl.protocol === "https:") return true;
+      if (request.nextUrl.protocol === "http:") return false;
+    }
+
+    return false;
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
+  if (appUrl) {
+    try {
+      return new URL(appUrl).protocol === "https:";
+    } catch {}
+  }
+
+  return false;
+}
+
+/**
+ * Returns standard centralized session cookie options.
+ * Dynamically resolves `secure` based on whether the request is transmitted over HTTPS.
+ */
+export function getSessionCookieOptions(maxAge?: number): CookieOptions;
+export function getSessionCookieOptions(
+  request?: NextRequest | Headers | null,
+  maxAge?: number
+): CookieOptions;
+export function getSessionCookieOptions(
+  requestOrMaxAge?: NextRequest | Headers | number | null,
+  optionalMaxAge?: number
+): CookieOptions {
+  let request: NextRequest | Headers | null = null;
+  let maxAge: number = SESSION_MAX_AGE_SECONDS;
+
+  if (typeof requestOrMaxAge === "number") {
+    maxAge = requestOrMaxAge;
+  } else if (requestOrMaxAge !== undefined && requestOrMaxAge !== null) {
+    request = requestOrMaxAge;
+    if (typeof optionalMaxAge === "number") {
+      maxAge = optionalMaxAge;
+    }
+  } else if (typeof optionalMaxAge === "number") {
+    maxAge = optionalMaxAge;
+  }
+
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isConnectionSecure(request),
     sameSite: "lax",
     path: "/",
     maxAge,

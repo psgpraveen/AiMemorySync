@@ -46,10 +46,15 @@ function LoginForm() {
         password,
       });
 
-      startTransition(() => {
-        router.push(redirectPath);
-        router.refresh();
-      });
+      // Force full document navigation to guarantee the new HttpOnly cookie is attached to RSC requests
+      if (typeof window !== "undefined") {
+        window.location.href = redirectPath;
+      } else {
+        startTransition(() => {
+          router.push(redirectPath);
+          router.refresh();
+        });
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
@@ -66,10 +71,14 @@ function LoginForm() {
 
     try {
       await devBootstrap();
-      startTransition(() => {
-        router.push(redirectPath);
-        router.refresh();
-      });
+      if (typeof window !== "undefined") {
+        window.location.href = redirectPath;
+      } else {
+        startTransition(() => {
+          router.push(redirectPath);
+          router.refresh();
+        });
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);

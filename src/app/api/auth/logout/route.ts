@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     // Clear session cookie immediately
     const expiredOptions = {
-      ...getSessionCookieOptions(),
+      ...getSessionCookieOptions(request),
       maxAge: 0,
       expires: new Date(0),
     };

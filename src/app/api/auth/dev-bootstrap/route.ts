@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const cookieOptions = getSessionCookieOptions();
+    const cookieOptions = getSessionCookieOptions(request);
     response.cookies.set(SESSION_COOKIE_NAME, rawToken, cookieOptions);
 
     return response;

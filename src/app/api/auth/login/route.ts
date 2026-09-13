@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     });
 
     // 7. Attach HttpOnly session cookie
-    const cookieOptions = getSessionCookieOptions();
+    const cookieOptions = getSessionCookieOptions(request);
     response.cookies.set(SESSION_COOKIE_NAME, rawToken, cookieOptions);
 
     return response;

@@ -41,10 +41,15 @@ function SignupForm() {
         tenantName: tenantName.trim(),
       });
 
-      startTransition(() => {
-        router.push("/projects");
-        router.refresh();
-      });
+      // Force full document navigation to guarantee the new HttpOnly cookie is attached to RSC requests
+      if (typeof window !== "undefined") {
+        window.location.href = "/projects";
+      } else {
+        startTransition(() => {
+          router.push("/projects");
+          router.refresh();
+        });
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
