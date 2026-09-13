@@ -60,6 +60,7 @@ model Tenant {
 
   members   TenantMember[]
   projects  Project[]
+  memories  Memory[]
   apiKeys   ApiKey[]
   sessions  Session[]
 
@@ -177,7 +178,8 @@ model ProjectSource {
 
 model Memory {
   id          String         @id @default(uuid())
-  projectId   String
+  tenantId    String
+  projectId   String?
   type        MemoryType
   title       String         @db.VarChar(200)
   content     String         @db.Text
@@ -187,8 +189,12 @@ model Memory {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project     Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId, status])
+  @@index([tenantId, projectId, status])
+  @@index([tenantId, contentHash])
   @@index([projectId, status])
   @@index([projectId, contentHash])
   @@index([projectId, type, priority])

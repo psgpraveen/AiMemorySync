@@ -38,6 +38,7 @@ export type ContextOptions = z.infer<typeof contextOptionsSchema>;
  * Parses raw query strings: ?budget=8000&types=DECISION,REQUIREMENT
  */
 export const contextQuerySchema = z.object({
+  projectId: projectIdSchema.optional(),
   budget: z
     .string()
     .optional()

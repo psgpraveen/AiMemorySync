@@ -3,8 +3,8 @@ import type { CacheAdapter } from "../adapters/cache.js";
 import type { ContextOptions, AssembledContextResult } from "../types/index.js";
 
 interface BackendContextResponse {
-  projectId: string;
-  projectName: string;
+  projectId: string | null;
+  projectName: string | null;
   context: string;
   includedMemoryCount: number;
   excludedMemoryCount: number;
@@ -19,24 +19,30 @@ export class ContextModule {
   ) {}
 
   /**
-   * Generates active, token/character-budgeted Markdown AI context for a project.
+   * Generates active, token/character-budgeted Markdown AI context for a project or workspace.
+   * If projectId is provided, combines project memories with workspace memories.
+   * If projectId is omitted or null, returns pure workspace / personal memories.
    */
-  async get(projectId: string, options?: ContextOptions): Promise<AssembledContextResult> {
+  async get(projectId?: string | null, options?: ContextOptions): Promise<AssembledContextResult> {
+    const targetProject = projectId ?? null;
     const budget = options?.budget ?? 8000;
     const typesKey = options?.types ? [...options.types].sort().join(",") : "ALL";
-    const cacheKey = `context:${projectId}:${budget}:${typesKey}`;
+    const cacheKey = `context:${targetProject ?? "tenant"}:${budget}:${typesKey}`;
 
     const cached = await this.cache.get<AssembledContextResult>(cacheKey);
     if (cached) return cached;
 
     const query: Record<string, string | number> = {};
+    if (targetProject) query.projectId = targetProject;
     if (options?.budget) query.budget = options.budget;
     if (options?.types && options.types.length > 0) {
       query.types = options.types.join(",");
     }
 
     const raw = await this.http.request<BackendContextResponse>(
-      `/api/projects/${encodeURIComponent(projectId)}/context`,
+      targetProject
+        ? `/api/projects/${encodeURIComponent(targetProject)}/context`
+        : `/api/context`,
       {
         method: "GET",
         query,

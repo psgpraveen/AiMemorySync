@@ -23,7 +23,7 @@ export const memoryStatusSchema = z.enum([
 export const memoryIdSchema = z.string().uuid("Invalid memory UUID format");
 
 export const createMemorySchema = z.object({
-  projectId: z.string().uuid("Invalid project UUID format"),
+  projectId: z.string().uuid("Invalid project UUID format").nullable().optional(),
   type: memoryTypeSchema,
   title: z
     .string()
@@ -62,8 +62,11 @@ export const updateMemorySchema = z
     "At least one field must be provided for update"
   );
 
+export const memoryScopeSchema = z.enum(["all", "tenant", "project"]);
+
 export const listMemoriesFilterSchema = z.object({
-  projectId: z.string().uuid("Invalid project UUID format"),
+  projectId: z.string().uuid("Invalid project UUID format").nullable().optional(),
+  scope: memoryScopeSchema.optional(),
   type: memoryTypeSchema.optional(),
   priority: memoryPrioritySchema.optional(),
   status: memoryStatusSchema.optional(),
@@ -72,3 +75,4 @@ export const listMemoriesFilterSchema = z.object({
 export type CreateMemoryInput = z.infer<typeof createMemorySchema>;
 export type UpdateMemoryInput = z.infer<typeof updateMemorySchema>;
 export type ListMemoriesFilter = z.infer<typeof listMemoriesFilterSchema>;
+export type MemoryScope = z.infer<typeof memoryScopeSchema>;

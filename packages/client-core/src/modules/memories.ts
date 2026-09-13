@@ -42,6 +42,29 @@ export class MemoriesModule {
   }
 
   /**
+   * Lists tenant-level memories (projectId = null).
+   */
+  async listTenant(filter?: ListMemoriesFilter): Promise<MemoryDto[]> {
+    const filterKey = `${filter?.status ?? "ALL"}_${filter?.type ?? "ALL"}_${filter?.priority ?? "ALL"}`;
+    const cacheKey = `memories:tenant:${filterKey}`;
+    const cached = await this.cache.get<MemoryDto[]>(cacheKey);
+    if (cached) return cached;
+
+    const query: Record<string, string> = { scope: "tenant" };
+    if (filter?.status) query.status = filter.status;
+    if (filter?.type) query.type = filter.type;
+    if (filter?.priority) query.priority = filter.priority;
+
+    const memories = await this.http.request<MemoryDto[]>(`/api/memories`, {
+      method: "GET",
+      query,
+    });
+
+    await this.cache.set(cacheKey, memories, { ttlMs: 30000 }); // 30s cache
+    return memories;
+  }
+
+  /**
    * Retrieves a single memory item by its UUID.
    */
   async get(id: string): Promise<MemoryDto> {
@@ -58,20 +81,37 @@ export class MemoriesModule {
   }
 
   /**
-   * Creates a new memory record strictly scoped to a project.
+   * Creates a new memory record (scoped to a project if projectId is provided, or tenant-level if null/omitted).
    */
-  async create(projectId: string, payload: CreateMemoryPayload): Promise<MemoryDto> {
-    const memory = await this.http.request<MemoryDto>(
-      `/api/projects/${encodeURIComponent(projectId)}/memories`,
-      {
+  async create(projectId: string | null | undefined, payload: CreateMemoryPayload): Promise<MemoryDto> {
+    const targetProjectId = projectId ?? payload.projectId ?? null;
+
+    let memory: MemoryDto;
+    if (targetProjectId) {
+      memory = await this.http.request<MemoryDto>(
+        `/api/projects/${encodeURIComponent(targetProjectId)}/memories`,
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        }
+      );
+    } else {
+      memory = await this.http.request<MemoryDto>(`/api/memories`, {
         method: "POST",
         body: JSON.stringify(payload),
-      }
-    );
+      });
+    }
 
-    await this.invalidateProjectMemories(projectId);
+    await this.invalidateMemories(targetProjectId);
     this.events.emit("memory:created", { memory });
     return memory;
+  }
+
+  /**
+   * Creates a tenant-level personal/cross-project memory record (projectId = null).
+   */
+  async createTenant(payload: CreateMemoryPayload): Promise<MemoryDto> {
+    return this.create(null, payload);
   }
 
   /**
@@ -84,7 +124,7 @@ export class MemoriesModule {
     });
 
     await this.cache.delete(`memory:${id}`);
-    await this.invalidateProjectMemories(memory.projectId);
+    await this.invalidateMemories(memory.projectId);
     this.events.emit("memory:updated", { memory });
     return memory;
   }
@@ -98,7 +138,7 @@ export class MemoriesModule {
     });
 
     await this.cache.delete(`memory:${id}`);
-    await this.invalidateProjectMemories(memory.projectId);
+    await this.invalidateMemories(memory.projectId);
     this.events.emit("memory:deprecated", { memory });
     return memory;
   }
@@ -112,19 +152,26 @@ export class MemoriesModule {
     });
 
     await this.cache.delete(`memory:${id}`);
-    await this.invalidateProjectMemories(memory.projectId);
-    this.events.emit("memory:archived", { memoryId: id, projectId: memory.projectId });
+    await this.invalidateMemories(memory.projectId);
+    this.events.emit("memory:archived", { memoryId: id, projectId: memory.projectId ?? "" });
     return memory;
   }
 
-  private async invalidateProjectMemories(projectId: string): Promise<void> {
-    if (this.cache.deletePrefix) {
-      await this.cache.deletePrefix(`memories:${projectId}:`);
-      await this.cache.deletePrefix(`context:${projectId}:`);
+  private async invalidateMemories(projectId: string | null): Promise<void> {
+    if (projectId) {
+      if (this.cache.deletePrefix) {
+        await this.cache.deletePrefix(`memories:${projectId}:`);
+        await this.cache.deletePrefix(`context:${projectId}:`);
+      } else {
+        await this.cache.delete(`context:${projectId}:default`);
+      }
+      this.events.emit("context:updated", { projectId });
     } else {
-      await this.cache.delete(`context:${projectId}:default`);
+      if (this.cache.deletePrefix) {
+        await this.cache.deletePrefix(`memories:tenant:`);
+        await this.cache.deletePrefix(`context:tenant:`);
+      }
     }
-    this.events.emit("context:updated", { projectId });
   }
 }
 

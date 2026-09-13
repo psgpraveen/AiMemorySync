@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import type { Project } from "@prisma/client";
-import { getProject, archiveProject, ApiError } from "@/lib/api-client";
+import { useProjects } from "@/contexts";
 import { LoadingState } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { Modal } from "@/components/shared/modal";
@@ -15,66 +14,20 @@ interface ProjectDetailViewProps {
 }
 
 export function ProjectDetailView({ id }: ProjectDetailViewProps) {
-  const [project, setProject] = useState<Project | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<{
-    message: string;
-    code?: string;
-    isNotFound?: boolean;
-  } | null>(null);
+  const {
+    activeProject: project,
+    loading,
+    error,
+    fetchProject,
+    archiveProject: apiArchiveProject,
+  } = useProjects();
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
 
-  const fetchProjectDetails = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getProject(id);
-      setProject(data);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError({
-          message: err.message,
-          code: err.code,
-          isNotFound: err.status === 404 || err.code === "PROJECT_NOT_FOUND",
-        });
-      } else {
-        setError({ message: "Failed to load project." });
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
-
   useEffect(() => {
-    let isMounted = true;
-    getProject(id)
-      .then((data) => {
-        if (isMounted) {
-          setProject(data);
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (isMounted) {
-          if (err instanceof ApiError) {
-            setError({
-              message: err.message,
-              code: err.code,
-              isNotFound: err.status === 404 || err.code === "PROJECT_NOT_FOUND",
-            });
-          } else {
-            setError({ message: "Failed to load project." });
-          }
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [id]);
+    void fetchProject(id);
+  }, [id, fetchProject]);
 
   async function handleArchiveProject() {
     if (!project || archiving) return;
@@ -88,22 +41,16 @@ export function ProjectDetailView({ id }: ProjectDetailViewProps) {
 
     setArchiving(true);
     try {
-      const updated = await archiveProject(project.id);
-      setProject(updated);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        alert("Error archiving project: " + err.message);
-      } else {
-        alert("Failed to archive project");
-      }
+      await apiArchiveProject(project.id);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to archive project");
     } finally {
       setArchiving(false);
     }
   }
 
-  function handleProjectUpdated(updated: Project) {
+  function handleProjectUpdated() {
     setIsEditOpen(false);
-    setProject(updated);
   }
 
   if (loading) {
@@ -114,18 +61,9 @@ export function ProjectDetailView({ id }: ProjectDetailViewProps) {
     return (
       <div className="mx-auto max-w-lg space-y-4 pt-12 text-center">
         <ErrorState
-          title={
-            error.isNotFound ? "Project Not Found" : "Error Loading Project"
-          }
-          message={
-            error.isNotFound
-              ? "No project was found with ID '" +
-                id +
-                "'. It may have been removed or the ID is invalid."
-              : error.message
-          }
-          code={error.code}
-          onRetry={error.isNotFound ? undefined : fetchProjectDetails}
+          title="Error Loading Project"
+          message={error}
+          onRetry={() => fetchProject(id)}
         />
         <div>
           <Link

@@ -3,12 +3,13 @@
 import { useState, useTransition, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { registerHuman, ApiError } from "@/lib/api-client";
+import { useAuth } from "@/contexts";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 
 function SignupForm() {
   const router = useRouter();
+  const { register } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,7 +34,7 @@ function SignupForm() {
     setError(null);
 
     try {
-      await registerHuman({
+      await register({
         name: name.trim(),
         email: email.trim(),
         password,
@@ -45,9 +46,7 @@ function SignupForm() {
         router.refresh();
       });
     } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else if (err instanceof Error) {
+      if (err instanceof Error) {
         setError(err.message);
       } else {
         setError("Failed to create workspace. Please try again.");

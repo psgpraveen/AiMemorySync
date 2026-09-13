@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import type { Memory } from "@prisma/client";
-import { getProjectMemories, ApiError } from "@/lib/api-client";
+import { useMemories } from "@/contexts";
 import { MemoryCard } from "./memory-card";
 import { MemoryForm } from "./memory-form";
 import { Modal } from "@/components/shared/modal";
@@ -15,68 +15,20 @@ interface MemoryListProps {
 }
 
 export function MemoryList({ projectId }: MemoryListProps) {
-  const [memories, setMemories] = useState<Memory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<{ message: string; code?: string } | null>(
-    null
-  );
-
+  const { memories, loading, error, fetchMemories } = useMemories();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
 
-  const fetchMemories = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getProjectMemories(projectId);
-      setMemories(data);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError({ message: err.message, code: err.code });
-      } else {
-        setError({ message: "Failed to load project memories." });
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
-
   useEffect(() => {
-    let isMounted = true;
-    getProjectMemories(projectId)
-      .then((data) => {
-        if (isMounted) {
-          setMemories(data);
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (isMounted) {
-          if (err instanceof ApiError) {
-            setError({ message: err.message, code: err.code });
-          } else {
-            setError({ message: "Failed to load project memories." });
-          }
-          setLoading(false);
-        }
-      });
+    void fetchMemories(projectId);
+  }, [projectId, fetchMemories]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [projectId]);
-
-  function handleMemoryCreated(newMemory: Memory) {
+  function handleMemoryCreated() {
     setIsCreateOpen(false);
-    // Add new memory to the top of the list
-    setMemories((prev) => [newMemory, ...prev]);
   }
 
-  function handleMemoryUpdated(updated: Memory) {
+  function handleMemoryUpdated() {
     setEditingMemory(null);
-    setMemories((prev) =>
-      prev.map((m) => (m.id === updated.id ? updated : m))
-    );
   }
 
   return (
@@ -117,9 +69,8 @@ export function MemoryList({ projectId }: MemoryListProps) {
       ) : error ? (
         <ErrorState
           title="Failed to load memories"
-          message={error.message}
-          code={error.code}
-          onRetry={fetchMemories}
+          message={error}
+          onRetry={() => fetchMemories(projectId)}
         />
       ) : memories.length === 0 ? (
         <EmptyState

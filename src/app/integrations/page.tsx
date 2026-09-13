@@ -1,38 +1,18 @@
 "use client";
 
-import { useState, useEffect, startTransition } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { IntegrationCard } from "@/components/integrations/integration-card";
 import { getAllIntegrations } from "@/lib/integrations/registry";
-import { getApiKey, verifyApiKey } from "@/lib/api-client";
+import { useAuth } from "@/contexts";
 
 export default function IntegrationsDashboardPage() {
   const allIntegrations = getAllIntegrations();
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
-  const [hasValidKey, setHasValidKey] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    const key = getApiKey();
-    if (!key) {
-      startTransition(() => {
-        setHasValidKey(false);
-      });
-      return;
-    }
-    verifyApiKey(key)
-      .then((res) => {
-        startTransition(() => {
-          setHasValidKey(res.valid);
-        });
-      })
-      .catch(() => {
-        startTransition(() => {
-          setHasValidKey(false);
-        });
-      });
-  }, []);
+  const { keyStatus } = useAuth();
+  const hasValidKey = keyStatus === "valid";
 
   const filtered =
     selectedCategory === "ALL"

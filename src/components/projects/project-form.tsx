@@ -2,11 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import type { Project } from "@prisma/client";
-import {
-  createProject,
-  updateProject,
-  ApiError,
-} from "@/lib/api-client";
+import { useProjects } from "@/contexts";
 
 interface ProjectFormProps {
   project?: Project; // If provided, edit mode; otherwise, create mode
@@ -20,6 +16,7 @@ export function ProjectForm({
   onCancel,
 }: ProjectFormProps) {
   const isEdit = !!project;
+  const { createProject, updateProject } = useProjects();
 
   const [name, setName] = useState(project?.name ?? "");
   const [slug, setSlug] = useState(project?.slug ?? "");
@@ -49,12 +46,12 @@ export function ProjectForm({
         });
         onSuccess(created);
       }
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setErrorMessage(err.message);
-      } else {
-        setErrorMessage("An unexpected error occurred. Please try again.");
-      }
+    } catch (err: unknown) {
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred. Please try again."
+      );
     } finally {
       setLoading(false);
     }

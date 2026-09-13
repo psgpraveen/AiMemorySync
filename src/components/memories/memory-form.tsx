@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import type { Memory, MemoryPriority, MemoryType } from "@prisma/client";
-import { createMemory, updateMemory, ApiError } from "@/lib/api-client";
+import { useMemories } from "@/contexts";
+import { ApiError } from "@/lib/api-client";
 
 interface MemoryFormProps {
   projectId: string;
@@ -32,6 +33,7 @@ export function MemoryForm({
   onCancel,
 }: MemoryFormProps) {
   const isEdit = !!memory;
+  const { createMemory, updateMemory } = useMemories();
 
   const [type, setType] = useState<MemoryType>(memory?.type ?? "DECISION");
   const [priority, setPriority] = useState<MemoryPriority>(

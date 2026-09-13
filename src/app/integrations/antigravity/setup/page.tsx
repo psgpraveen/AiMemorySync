@@ -7,6 +7,7 @@ import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { CodeBlock } from "@/components/integrations/code-block";
 import {
+  API_ENDPOINTS,
   getApiKey,
   verifyApiKey,
   listApiKeys,
@@ -487,7 +488,7 @@ export default function AntigravitySetupWizardPage() {
                   </p>
                 </div>
                 <a
-                  href="/api/integrations/antigravity/download"
+                  href={API_ENDPOINTS.INTEGRATIONS.DOWNLOAD("antigravity")}
                   download="antigravity-aimemory-plugin.zip"
                   className="rounded bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition shrink-0"
                 >

@@ -1,23 +1,25 @@
 "use client";
 
-import { useState, useEffect, useCallback, startTransition } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { Modal } from "@/components/shared/modal";
-import {
-  listApiKeys,
-  createApiKey,
-  revokeApiKey,
-  ApiKeyDto,
-  CreateApiKeyResponse,
-  ApiError,
-} from "@/lib/api-client";
+import { useApiKeys } from "@/contexts";
+import type { CreateApiKeyResponse } from "@/lib/api-client";
 
 export default function ApiKeysPage() {
-  const [keys, setKeys] = useState<ApiKeyDto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    apiKeys: keys,
+    loading,
+    error: contextError,
+    fetchApiKeys,
+    createApiKey: apiCreateKey,
+    revokeApiKey: apiRevokeKey,
+  } = useApiKeys();
+
+  const [localError, setLocalError] = useState<string | null>(null);
+  const error = localError || contextError;
 
   // Creation modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -36,31 +38,9 @@ export default function ApiKeysPage() {
   // Revoke state
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
-  const fetchKeys = useCallback(async () => {
-    try {
-      const data = await listApiKeys();
-      startTransition(() => {
-        setKeys(data);
-        setError(null);
-        setLoading(false);
-      });
-    } catch (err: unknown) {
-      startTransition(() => {
-        if (err instanceof ApiError) {
-          setError(err.message);
-        } else if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("Failed to load API keys.");
-        }
-        setLoading(false);
-      });
-    }
-  }, []);
-
   useEffect(() => {
-    void fetchKeys();
-  }, [fetchKeys]);
+    void fetchApiKeys();
+  }, [fetchApiKeys]);
 
   function handleIntegrationChange(integration: string) {
     setSelectedIntegration(integration);
@@ -83,7 +63,7 @@ export default function ApiKeysPage() {
     if (!keyName.trim()) return;
 
     setCreating(true);
-    setError(null);
+    setLocalError(null);
 
     const scopes: string[] = [];
     if (scopeRead) scopes.push("read");
@@ -91,7 +71,7 @@ export default function ApiKeysPage() {
     if (scopeAdmin) scopes.push("admin");
 
     try {
-      const res = await createApiKey({
+      const res = await apiCreateKey({
         name: keyName.trim(),
         scopes: scopes.length > 0 ? scopes : ["read"],
         expiresInDays: expirationDays,
@@ -100,13 +80,12 @@ export default function ApiKeysPage() {
       setCreatedResult(res);
       setIsCreateOpen(false);
       setKeyName("");
-      // Refresh list
-      await fetchKeys();
+      setLocalError(null);
     } catch (err: unknown) {
       if (err instanceof Error) {
-        setError(err.message);
+        setLocalError(err.message);
       } else {
-        setError("Failed to create API key");
+        setLocalError("Failed to create API key");
       }
     } finally {
       setCreating(false);
@@ -120,8 +99,7 @@ export default function ApiKeysPage() {
 
     setRevokingId(id);
     try {
-      await revokeApiKey(id);
-      await fetchKeys();
+      await apiRevokeKey(id);
     } catch (err: unknown) {
       if (err instanceof Error) {
         alert(err.message);

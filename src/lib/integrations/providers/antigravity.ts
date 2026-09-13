@@ -1,4 +1,5 @@
 import type { IntegrationDefinition } from "../types";
+import { API_ENDPOINTS } from "@/lib/api/endpoints";
 
 export const antigravityIntegration: IntegrationDefinition = {
   id: "antigravity",
@@ -90,7 +91,7 @@ export const antigravityIntegration: IntegrationDefinition = {
         "Download and unpack the official generic plugin package into your workspace's .agents/ directory.",
       actionButton: {
         label: "Download Plugin Package (.zip)",
-        href: "/api/integrations/antigravity/download",
+        href: API_ENDPOINTS.INTEGRATIONS.DOWNLOAD("antigravity"),
         actionType: "download",
       },
       tips: [

@@ -13,7 +13,8 @@ export type MemoryStatus = "ACTIVE" | "DEPRECATED" | "ARCHIVED";
  */
 export interface MemoryDto {
   id: string;
-  projectId: string;
+  tenantId?: string;
+  projectId: string | null;
   type: MemoryType;
   title: string;
   content: string;
@@ -25,9 +26,10 @@ export interface MemoryDto {
 }
 
 /**
- * Payload for creating a new memory strictly scoped to a project.
+ * Payload for creating a new memory (project-scoped or tenant-level).
  */
 export interface CreateMemoryPayload {
+  projectId?: string | null;
   type: MemoryType;
   title: string;
   content: string;
@@ -46,9 +48,11 @@ export interface UpdateMemoryPayload {
 }
 
 /**
- * Query filter for listing project memories.
+ * Query filter for listing memories.
  */
 export interface ListMemoriesFilter {
+  projectId?: string | null;
+  scope?: "all" | "tenant" | "project";
   status?: MemoryStatus;
   type?: MemoryType;
   priority?: MemoryPriority;

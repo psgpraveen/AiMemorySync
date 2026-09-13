@@ -1,107 +1,57 @@
 "use client";
 
-import { useState, useEffect, startTransition } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  getApiKey,
-  setApiKey,
-  verifyApiKey,
-  getCurrentSession,
-  logoutHuman,
-  switchTenant,
-  SessionResponse,
-} from "@/lib/api-client";
+import { useAuth } from "@/contexts";
 import { Modal } from "@/components/shared/modal";
 
 export function Navbar() {
   const router = useRouter();
-  const [session, setSession] = useState<SessionResponse | null>(null);
-  const [isSwitchingTenant, setIsSwitchingTenant] = useState(false);
+  const {
+    session,
+    apiKey,
+    keyStatus,
+    isSwitchingTenant,
+    logout,
+    switchWorkspace,
+    setMachineApiKey,
+  } = useAuth();
+
   const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
-  const [inputKey, setInputKey] = useState<string>("");
+  const [inputKey, setInputKey] = useState("");
   const [savedSuccess, setSavedSuccess] = useState(false);
-  const [keyStatus, setKeyStatus] = useState<"none" | "valid" | "invalid">("none");
 
-  useEffect(() => {
-    // 1. Check human session via HttpOnly cookie
-    getCurrentSession()
-      .then((res) => {
-        startTransition(() => {
-          setSession(res);
-        });
-      })
-      .catch(() => {
-        startTransition(() => {
-          setSession(null);
-        });
-      });
-
-    // 2. Check machine API key in localStorage
-    const stored = getApiKey() || "";
-    startTransition(() => {
-      setInputKey(stored);
-    });
-
-    if (stored) {
-      verifyApiKey(stored)
-        .then((res) => {
-          startTransition(() => {
-            setKeyStatus(res.valid ? "valid" : "invalid");
-          });
-        })
-        .catch(() => {
-          startTransition(() => {
-            setKeyStatus("invalid");
-          });
-        });
-    }
-  }, []);
+  function openKeyModal() {
+    setInputKey(apiKey || "");
+    setIsKeyModalOpen(true);
+  }
 
   async function handleLogout() {
-    try {
-      await logoutHuman();
-    } catch {
-      // Continue even if server logout fails
-    }
-    setApiKey(null);
-    setInputKey("");
-    setKeyStatus("none");
-    setSession(null);
+    await logout();
     router.push("/login?loggedOut=true");
     router.refresh();
   }
 
   async function handleSwitchWorkspace(tenantId: string) {
     if (!tenantId || tenantId === session?.activeTenant.id) return;
-    setIsSwitchingTenant(true);
     try {
-      const res = await switchTenant(tenantId);
-      if (session) {
-        setSession({
-          ...session,
-          activeTenant: res.activeTenant,
-        });
-      }
+      await switchWorkspace(tenantId);
       router.refresh();
     } catch {
-      // Switch failed
-    } finally {
-      setIsSwitchingTenant(false);
+      // Handled in context
     }
   }
 
-  function handleSaveKey(e: React.FormEvent) {
+  async function handleSaveKey(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = inputKey.trim();
     if (!trimmed) {
-      setApiKey(null);
-      setKeyStatus("none");
+      await setMachineApiKey(null);
       setIsKeyModalOpen(false);
       return;
     }
-    setApiKey(trimmed);
-    setKeyStatus("valid");
+    await setMachineApiKey(trimmed);
     setSavedSuccess(true);
     setTimeout(() => {
       setSavedSuccess(false);

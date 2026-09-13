@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Memory, MemoryPriority, MemoryType } from "@prisma/client";
-import { deprecateMemory, archiveMemory, ApiError } from "@/lib/api-client";
+import { useMemories } from "@/contexts";
 
 interface MemoryCardProps {
   memory: Memory;
@@ -39,6 +39,7 @@ const PRIORITY_STYLES: Record<MemoryPriority, { label: string; class: string }> 
   };
 
 export function MemoryCard({ memory, onEdit, onUpdated }: MemoryCardProps) {
+  const { deprecateMemory, archiveMemory } = useMemories();
   const [acting, setActing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -59,12 +60,8 @@ export function MemoryCard({ memory, onEdit, onUpdated }: MemoryCardProps) {
     try {
       const updated = await deprecateMemory(memory.id);
       onUpdated(updated);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setActionError(err.message);
-      } else {
-        setActionError("Failed to deprecate memory");
-      }
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : "Failed to deprecate memory");
     } finally {
       setActing(false);
     }
@@ -80,12 +77,10 @@ export function MemoryCard({ memory, onEdit, onUpdated }: MemoryCardProps) {
     try {
       const updated = await archiveMemory(memory.id);
       onUpdated(updated);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setActionError(err.message);
-      } else {
-        setActionError("Failed to archive memory");
-      }
+    } catch (err: unknown) {
+      setActionError(
+        err instanceof Error ? err.message : "Failed to archive memory"
+      );
     } finally {
       setActing(false);
     }
@@ -114,6 +109,17 @@ export function MemoryCard({ memory, onEdit, onUpdated }: MemoryCardProps) {
             className={`rounded px-2 py-0.5 text-[11px] font-medium ${priorityMeta.class}`}
           >
             {priorityMeta.label}
+          </span>
+
+          {/* Scope Badge */}
+          <span
+            className={`rounded border px-2 py-0.5 text-[11px] font-medium ${
+              memory.projectId === null
+                ? "border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800/60 dark:bg-purple-950/40 dark:text-purple-300"
+                : "border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
+            }`}
+          >
+            {memory.projectId === null ? "Tenant / Personal" : "Project"}
           </span>
 
           {/* Status Badge */}

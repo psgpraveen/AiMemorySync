@@ -50,8 +50,8 @@ const SECTION_ORDER: MemoryType[] = [
 ];
 
 export interface ContextResult {
-  projectId: string;
-  projectName: string;
+  projectId: string | null;
+  projectName: string | null;
   context: string;
   includedMemoryCount: number;
   excludedMemoryCount: number;
@@ -59,8 +59,14 @@ export interface ContextResult {
   usedCharacters: number;
 }
 
+export interface AssembleContextOptions {
+  projectId?: string | null;
+  budget?: number;
+  types?: MemoryType[];
+}
+
 /**
- * Formats a list of selected memories into clean, grouped Markdown context.
+ * Formats a list of selected memories into clean, grouped Markdown context for a project.
  * Does NOT expose UUIDs, timestamps, hashes, or database IDs.
  */
 export function formatContextMarkdown(
@@ -100,76 +106,54 @@ export function formatContextMarkdown(
 }
 
 /**
- * Assembles active project context with deterministic prioritization,
- * character budget enforcement, and type-grouped Markdown formatting.
- * Enforces tenant ownership and project-scoped API key restrictions.
- *
- * This operation is completely stateless and read-only.
+ * Formats a list of selected memories into clean, grouped Markdown context for a workspace/tenant.
  */
-export async function assembleProjectContext(
-  projectId: string,
-  rawOptions?: Partial<ContextOptions>,
-  tenantId?: string,
-  allowedProjectId?: string
-): Promise<ContextResult> {
-  // 1. Validate inputs
-  const idValidation = projectIdSchema.safeParse(projectId);
-  if (!idValidation.success) {
-    throw new ValidationError(
-      "Invalid project ID format",
-      idValidation.error.flatten()
-    );
+export function formatWorkspaceContextMarkdown(
+  tenantName: string,
+  memories: Memory[]
+): string {
+  const header = `# Workspace Context\n\nTenant: ${tenantName}`;
+
+  if (memories.length === 0) {
+    return `${header}\n\nNo active workspace memory is currently available.`;
   }
 
-  // Enforce project-scoped key check
-  if (allowedProjectId && projectId !== allowedProjectId) {
-    throw new ForbiddenError(
-      `API key is scoped exclusively to project '${allowedProjectId}' and cannot access '${projectId}'`
-    );
+  // Group memories by type
+  const grouped: Partial<Record<MemoryType, Memory[]>> = {};
+  for (const memory of memories) {
+    if (!grouped[memory.type]) {
+      grouped[memory.type] = [];
+    }
+    grouped[memory.type]!.push(memory);
   }
 
-  const optionsValidation = contextOptionsSchema.safeParse(rawOptions ?? {});
-  if (!optionsValidation.success) {
-    throw new ValidationError(
-      "Invalid context generation options",
-      optionsValidation.error.flatten()
+  const sections: string[] = [];
+
+  for (const type of SECTION_ORDER) {
+    const items = grouped[type];
+    if (!items || items.length === 0) continue;
+
+    const sectionTitle = SECTION_HEADERS[type];
+    const itemBlocks = items.map(
+      (m) => `### ${m.title}\n\n${m.content}`
     );
+
+    sections.push(`${sectionTitle}\n\n${itemBlocks.join("\n\n---\n\n")}`);
   }
 
-  const { budget, types } = optionsValidation.data;
+  return `${header}\n\n${sections.join("\n\n---\n\n")}`;
+}
 
-  // 2. Verify project exists within tenant
-  const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      ...(tenantId && { tenantId }),
-    },
-  });
-
-  if (!project) {
-    throw new NotFoundError(
-      `Project with ID '${projectId}' not found`,
-      "PROJECT_NOT_FOUND",
-      { projectId }
-    );
-  }
-
-  // 3. Retrieve ACTIVE memories only (ARCHIVED and DEPRECATED are strictly excluded)
-  const activeMemories = await prisma.memory.findMany({
-    where: {
-      projectId,
-      status: "ACTIVE",
-      ...(types && types.length > 0 && { type: { in: types } }),
-    },
-  });
-
-  // 4. Deterministic multi-tier sort for selection:
-  //    Tier 1: Priority (CRITICAL -> HIGH -> NORMAL -> LOW)
-  //    Tier 2: Type (DECISION -> REQUIREMENT -> CONVENTION -> BUG_SOLUTION)
-  //    Tier 3: Recency (updatedAt DESC)
-  //    Tier 4: Creation (createdAt DESC)
-  //    Tier 5: Stable tie-breaker (id ASC)
-  const sortedMemories = [...activeMemories].sort((a, b) => {
+/**
+ * Deterministic multi-tier sort for memory selection:
+ * Tier 1: Priority (CRITICAL -> HIGH -> NORMAL -> LOW)
+ * Tier 2: Type (DECISION -> REQUIREMENT -> CONVENTION -> BUG_SOLUTION)
+ * Tier 3: Recency (updatedAt DESC)
+ * Tier 4: Creation (createdAt DESC)
+ * Tier 5: Stable tie-breaker (id ASC)
+ */
+function sortMemoriesForContext(memories: Memory[]): Memory[] {
+  return [...memories].sort((a, b) => {
     const pDiff = PRIORITY_WEIGHT[b.priority] - PRIORITY_WEIGHT[a.priority];
     if (pDiff !== 0) return pDiff;
 
@@ -184,30 +168,174 @@ export async function assembleProjectContext(
 
     return a.id.localeCompare(b.id);
   });
+}
 
-  // 5. Greedily select memories that fit within the character budget
-  //    A memory is either included completely or excluded completely (never partially cut).
-  const selectedMemories: Memory[] = [];
-
-  for (const candidate of sortedMemories) {
-    const testCandidateList = [...selectedMemories, candidate];
-    const formatted = formatContextMarkdown(project.name, testCandidateList);
-
-    if (formatted.length <= budget) {
-      selectedMemories.push(candidate);
-    }
-    // If candidate exceeds budget, it is omitted.
+/**
+ * Assembles active context (tenant-level or project-level) with deterministic prioritization,
+ * character budget enforcement, and type-grouped Markdown formatting.
+ *
+ * Scopes:
+ * - If projectId is specified: assembles project memories + tenant memories, strictly isolating other projects.
+ * - If projectId is omitted/null: assembles tenant-level memories only (projectId = null).
+ *
+ * Enforces tenant ownership and machine key project scoping (project-scoped keys cannot access tenant-level context).
+ */
+export async function assembleContext(
+  options: AssembleContextOptions,
+  tenantId?: string,
+  allowedProjectId?: string
+): Promise<ContextResult> {
+  const optionsValidation = contextOptionsSchema.safeParse({
+    budget: options.budget,
+    types: options.types,
+  });
+  if (!optionsValidation.success) {
+    throw new ValidationError(
+      "Invalid context generation options",
+      optionsValidation.error.flatten()
+    );
   }
 
-  const finalContext = formatContextMarkdown(project.name, selectedMemories);
+  const { budget, types } = optionsValidation.data;
+  const resolvedTenantId = tenantId ?? "00000000-0000-0000-0000-000000000001";
 
-  return {
-    projectId: project.id,
-    projectName: project.name,
-    context: finalContext,
-    includedMemoryCount: selectedMemories.length,
-    excludedMemoryCount: sortedMemories.length - selectedMemories.length,
-    budget,
-    usedCharacters: finalContext.length,
-  };
+  if (options.projectId) {
+    const idValidation = projectIdSchema.safeParse(options.projectId);
+    if (!idValidation.success) {
+      throw new ValidationError(
+        "Invalid project ID format",
+        idValidation.error.flatten()
+      );
+    }
+
+    // Enforce project-scoped key check
+    if (allowedProjectId && options.projectId !== allowedProjectId) {
+      throw new ForbiddenError(
+        `API key is scoped exclusively to project '${allowedProjectId}' and cannot access '${options.projectId}'`
+      );
+    }
+
+    // Verify project exists within tenant
+    const project = await prisma.project.findFirst({
+      where: {
+        id: options.projectId,
+        tenantId: resolvedTenantId,
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundError(
+        `Project with ID '${options.projectId}' not found`,
+        "PROJECT_NOT_FOUND",
+        { projectId: options.projectId }
+      );
+    }
+
+    // Retrieve ACTIVE memories: project memories + tenant memories (projectId = null)
+    const activeMemories = await prisma.memory.findMany({
+      where: {
+        tenantId: resolvedTenantId,
+        status: "ACTIVE",
+        OR: [
+          { projectId: project.id },
+          { projectId: null },
+        ],
+        ...(types && types.length > 0 && { type: { in: types } }),
+      },
+    });
+
+    const sortedMemories = sortMemoriesForContext(activeMemories);
+
+    // Greedily select memories that fit within the character budget
+    const selectedMemories: Memory[] = [];
+    for (const candidate of sortedMemories) {
+      const testCandidateList = [...selectedMemories, candidate];
+      const formatted = formatContextMarkdown(project.name, testCandidateList);
+
+      if (formatted.length <= budget) {
+        selectedMemories.push(candidate);
+      }
+    }
+
+    const finalContext = formatContextMarkdown(project.name, selectedMemories);
+
+    return {
+      projectId: project.id,
+      projectName: project.name,
+      context: finalContext,
+      includedMemoryCount: selectedMemories.length,
+      excludedMemoryCount: sortedMemories.length - selectedMemories.length,
+      budget,
+      usedCharacters: finalContext.length,
+    };
+  } else {
+    // Tenant-level context request (no project)
+    if (allowedProjectId) {
+      throw new ForbiddenError(
+        `API key is scoped exclusively to project '${allowedProjectId}' and cannot access tenant-level context`
+      );
+    }
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: resolvedTenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundError(
+        `Tenant with ID '${resolvedTenantId}' not found`,
+        "TENANT_NOT_FOUND",
+        { tenantId: resolvedTenantId }
+      );
+    }
+
+    // Retrieve ACTIVE memories: tenant-level memories only (projectId = null)
+    const activeMemories = await prisma.memory.findMany({
+      where: {
+        tenantId: resolvedTenantId,
+        projectId: null,
+        status: "ACTIVE",
+        ...(types && types.length > 0 && { type: { in: types } }),
+      },
+    });
+
+    const sortedMemories = sortMemoriesForContext(activeMemories);
+
+    const selectedMemories: Memory[] = [];
+    for (const candidate of sortedMemories) {
+      const testCandidateList = [...selectedMemories, candidate];
+      const formatted = formatWorkspaceContextMarkdown(tenant.name, testCandidateList);
+
+      if (formatted.length <= budget) {
+        selectedMemories.push(candidate);
+      }
+    }
+
+    const finalContext = formatWorkspaceContextMarkdown(tenant.name, selectedMemories);
+
+    return {
+      projectId: null,
+      projectName: null,
+      context: finalContext,
+      includedMemoryCount: selectedMemories.length,
+      excludedMemoryCount: sortedMemories.length - selectedMemories.length,
+      budget,
+      usedCharacters: finalContext.length,
+    };
+  }
+}
+
+/**
+ * Assembles active project context (backwards-compatible alias for assembleContext with projectId).
+ */
+export async function assembleProjectContext(
+  projectId: string,
+  rawOptions?: Partial<ContextOptions>,
+  tenantId?: string,
+  allowedProjectId?: string
+): Promise<ContextResult> {
+  return assembleContext(
+    { ...rawOptions, projectId },
+    tenantId,
+    allowedProjectId
+  );
 }

@@ -24,8 +24,8 @@ export interface AssembledContextSection {
  * Assembled AI context result payload for a project.
  */
 export interface AssembledContextResult {
-  projectId: string;
-  projectName: string;
+  projectId: string | null;
+  projectName: string | null;
   budget: {
     requested: number;
     usedCharacters: number;

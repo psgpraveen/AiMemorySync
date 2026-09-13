@@ -25,16 +25,21 @@ AiMemorySync strictly distinguishes between three layers of information:
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │ 2. PERSISTENT MEMORY (Extracted Knowledge)             │
-│    - Project Memory (Primary): Decisions, rules,       │
-│      requirements, conventions, bug solutions          │
-│    - Global Preferences (Post-MVP): User habits        │
+│    - Tenant-Level Memory (projectId = null):           │
+│      Personal preferences, cross-project conventions,  │
+│      tenant-wide architectural guidelines              │
+│    - Project Memory (projectId = PROJECT_ID):          │
+│      Decisions, requirements, conventions, bug         │
+│      solutions specific to a single repository         │
 └───────────────────────────┬────────────────────────────┘
                             │ (Query & Synthesis)
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │ 3. TEMPORARY WORKING CONTEXT                           │
+│    - Pure Workspace Context: Tenant-level memories     │
+│    - Project Context: Tenant-level + Project memories  │
 │    Dynamic, token-bounded prompt package compiled      │
-│    for a single active AI interaction turn             │
+│    for active AI interaction turns                     │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -43,23 +48,59 @@ AiMemorySync strictly distinguishes between three layers of information:
 | Information Entity | Nature | Lifetime | Storage Boundary | Retrieval Purpose |
 |---|---|---|---|---|
 | **Raw Interaction Log** | **Raw Data**: Verbatim conversational transcripts. | Expiring / User-defined retention. | Relational transcript log. | Sourcing, auditability, and offline extraction. |
-| **Project Memory** | **Persistent Memory**: Extracted structured knowledge (decisions, requirements, conventions, architecture). | Project lifecycle (until updated or deprecated). | Normalized project-scoped database tables & indices. | High-precision project grounding and context assembly. |
-| **Global Preferences** *(Post-MVP)* | **Persistent Memory**: Cross-project user habits, preferred tooling, personal styling. | User lifecycle (until modified by user). | User-scoped profile store. | Personalizing agent interactions across multiple projects. |
+| **Tenant-Level Memory** | **Persistent Memory**: Personal preferences, user habits, global conventions. | Tenant lifecycle (until updated or deprecated). | `memories` table where `tenantId = ID` and `projectId = NULL`. | Workspace-wide context and cross-project agent personalization. |
+| **Project Memory** | **Persistent Memory**: Extracted structured knowledge (decisions, requirements, conventions, bug solutions). | Project lifecycle (until updated or deprecated). | `memories` table where `tenantId = ID` and `projectId = PROJECT_ID`. | High-precision project grounding and repository-specific context. |
 | **Working Context** | **Temporary Context**: Ephemeral context bundle assembled for prompt injection. | Interaction turn / active session. | In-memory runtime state. | Direct prompt augmentation into the target AI model. |
 
 ---
 
-## 3. Project Memory Sub-Types
+## 3. Memory Scopes & Unified Context Assembly
 
-Within **Project Memory**, extracted knowledge is classified into deterministic sub-types:
+AiMemorySync implements a two-tier memory hierarchy where **Tenant is the mandatory security boundary and Project is an optional scope**:
+
+```text
+Tenant (Organization or User Account)
+│
+├── Tenant-Level / Workspace Memory (projectId = NULL)
+│   ├── User styling habits & editor preferences
+│   ├── Organizational compliance guidelines
+│   └── Cross-project tool conventions
+│
+└── Project Memories (projectId = PROJECT_ID)
+    ├── Project Alpha Decisions & Architecture
+    ├── Project Beta Bug Solutions & Requirements
+    └── Monorepo Subproject Conventions
+```
+
+### 3.1 Unified Context Assembly Logic
+When an agent or client requests context, the system dynamically compiles active memories according to scope:
+
+1. **Workspace Context (`projectId = null`)**:
+   - Query: Active memories where `tenantId = TENANT_ID AND projectId IS NULL AND status = 'ACTIVE'`.
+   - Output Format: `# Workspace Context\n\nTenant: <Name>\n\n...`
+   - Security: Project-scoped machine keys receive `403 Forbidden`.
+
+2. **Project Context (`projectId = PROJECT_ID`)**:
+   - Query: Active memories where `tenantId = TENANT_ID AND status = 'ACTIVE' AND (projectId = PROJECT_ID OR projectId IS NULL)`.
+   - Output Format: `# Project Context\n\nProject: <Name>\nTenant: <Name>\n\n...`
+   - Isolation: Memories belonging to other projects (`projectId = OTHER_ID`) are strictly excluded.
+
+### 3.2 Machine Key Scoping & Enforcement
+- **Tenant-Wide Keys (`apiKey.projectId = null`)**: Authorized for both workspace-wide context and any project within the tenant.
+- **Project-Scoped Keys (`apiKey.projectId = ID`)**: Confined strictly to the assigned project. Denied access to tenant-level memories (`projectId = null`) or other projects (`403 Forbidden`).
+
+---
+
+## 4. Memory Sub-Types & Lifecycles
+
+Within both **Tenant Memory** and **Project Memory**, extracted knowledge is classified into deterministic sub-types:
 - `DECISION`: Architectural and technical decisions made during planning or coding.
 - `REQUIREMENT`: Functional or non-functional constraints specified by the user.
 - `CONVENTION`: Code styling, directory structure, or repository patterns agreed upon.
 - `BUG_SOLUTION`: Known issues, root causes identified, and solutions discovered.
-- `TASK_STATE`: Active milestone, completed items, or blocked states.
 
-Every Project Memory record transitions through a clear lifecycle state:
-`PROPOSED` → `ACTIVE` → `SUPERSEDED` → `DEPRECATED`.
+Every Memory record transitions through a clear lifecycle state:
+`ACTIVE` → `DEPRECATED` → `ARCHIVED`. Deprecated and archived memories are automatically excluded from context assembly.
 
 ---
 

@@ -3,13 +3,7 @@
 import { useState, useTransition, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import {
-  loginHuman,
-  devBootstrapLogin,
-  verifyApiKey,
-  setApiKey,
-  ApiError,
-} from "@/lib/api-client";
+import { useAuth } from "@/contexts";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 
@@ -18,6 +12,8 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get("redirect") || "/projects";
   const justLoggedOut = searchParams.get("loggedOut") === "true";
+
+  const { login, devBootstrap, setMachineApiKey } = useAuth();
 
   // Human login form state
   const [email, setEmail] = useState("");
@@ -45,7 +41,7 @@ function LoginForm() {
     setError(null);
 
     try {
-      await loginHuman({
+      await login({
         email: email.trim(),
         password,
       });
@@ -55,9 +51,7 @@ function LoginForm() {
         router.refresh();
       });
     } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else if (err instanceof Error) {
+      if (err instanceof Error) {
         setError(err.message);
       } else {
         setError("Sign in failed. Please check your credentials.");
@@ -71,7 +65,7 @@ function LoginForm() {
     setError(null);
 
     try {
-      await devBootstrapLogin();
+      await devBootstrap();
       startTransition(() => {
         router.push(redirectPath);
         router.refresh();
@@ -98,9 +92,8 @@ function LoginForm() {
     setMachineError(null);
 
     try {
-      const res = await verifyApiKey(cleanKey);
-      if (res.valid) {
-        setApiKey(cleanKey);
+      const isValid = await setMachineApiKey(cleanKey);
+      if (isValid) {
         startTransition(() => {
           router.push(redirectPath);
           router.refresh();
@@ -109,13 +102,12 @@ function LoginForm() {
         setMachineError("Invalid or revoked API key.");
       }
     } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        setMachineError(err.message);
-      } else if (err instanceof Error) {
+      if (err instanceof Error) {
         setMachineError(err.message);
       } else {
         setMachineError("Verification failed.");
       }
+    } finally {
       setMachineLoading(false);
     }
   }

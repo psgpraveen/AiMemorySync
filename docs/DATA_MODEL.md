@@ -1,14 +1,14 @@
-# Core Data Model: AiMemorySync (MVP)
+# Core Data Model: AiMemorySync
 
 ## 1. Overview & Data Model Principles
-The AiMemorySync MVP data model is intentionally streamlined. It focuses on the core problem: **storing, organizing, and retrieving structured technical memories scoped to specific software projects**.
+The AiMemorySync data model focuses on the core problem: **storing, organizing, and retrieving structured technical memories with strong multi-tenant security boundaries and optional project scopes**.
 
 ### Core Principles
-1. **Minimal MVP Footprint**: Include only entities essential for the MVP to function.
-2. **Strict Project Isolation**: Every memory record is firmly anchored to a `project_id`.
+1. **Tenant is the Mandatory Security Boundary**: Every memory record is firmly anchored to a `tenant_id`. Cross-tenant data access is strictly forbidden.
+2. **Project is an Optional Scope**: Memories can exist at the tenant level (`project_id = NULL` for personal preferences, cross-project instructions, or workspace-wide conventions) or scoped to a specific project (`project_id = PROJECT_ID` for project-specific architecture, requirements, and decisions).
 3. **Database Integrity**: Enforce constraints, foreign keys, and check rules at the database level.
-4. **Deterministic Duplicate Detection**: Use cryptographic content hashing scoped by project.
-5. **Clean Migration Trajectory**: Ensure the MVP schema seamlessly accommodates future multi-user accounts, workspaces, version history, and vector embeddings without breaking changes.
+4. **Deterministic Duplicate Detection**: Use cryptographic content hashing scoped by tenant and optional project.
+5. **Machine Key Scoping**: Machine keys (API keys) can be tenant-wide or restricted to a specific project. Project-scoped keys are strictly forbidden from accessing or creating tenant-level memories.
 
 ---
 
@@ -16,26 +16,37 @@ The AiMemorySync MVP data model is intentionally streamlined. It focuses on the 
 
 ```text
 ┌────────────────────────────────────────┐
-│                Project                 │
+│                 Tenant                 │
 ├────────────────────────────────────────┤
 │ PK  id          UUID                   │
 │     name        VARCHAR(100)           │
 │     slug        VARCHAR(100) UNIQUE    │
-│     description TEXT                   │
-│     status      VARCHAR(20)            │
 │     created_at  TIMESTAMPTZ            │
 │     updated_at  TIMESTAMPTZ            │
-└───────────────────┬────────────────────┘
-                    │ 1
-                    │
-                    │ has many (1 : N)
-                    │
-                    ▼ *
+└──────┬──────────────────────────┬──────┘
+       │ 1                        │ 1
+       │ has many (1 : N)         │ has many (1 : N, mandatory)
+       ▼ *                        │
+┌──────────────────────────┐      │
+│         Project          │      │
+├──────────────────────────┤      │
+│ PK  id          UUID     │      │
+│ FK  tenant_id   UUID     │      │
+│     name        VARCHAR  │      │
+│     slug        VARCHAR  │      │
+│     status      VARCHAR  │      │
+│     created_at  TIMESTAMPTZ     │
+│     updated_at  TIMESTAMPTZ     │
+└──────────────┬───────────┘      │
+               │ 1 (optional)     │
+               │ has many         │
+               ▼ *                ▼ *
 ┌────────────────────────────────────────┐
 │                 Memory                 │
 ├────────────────────────────────────────┤
 │ PK  id           UUID                  │
-│ FK  project_id   UUID                  │
+│ FK  tenant_id    UUID (NOT NULL)       │
+│ FK  project_id   UUID (NULLABLE)       │
 │     type         VARCHAR(20)           │
 │     title        VARCHAR(200)          │
 │     content      TEXT                  │
@@ -52,23 +63,18 @@ The AiMemorySync MVP data model is intentionally streamlined. It focuses on the 
 ## 3. Entity Definitions & Field Specifications
 
 ### 3.1 `Project` Entity
-The `Project` entity serves as the root isolation anchor for all engineering context.
+The `Project` entity represents a specific software repository or project within a tenant.
 
 | Field | Type Concept | Constraint / Nullability | Description & Validation |
 |---|---|---|---|
 | `id` | `UUID` | `PRIMARY KEY` | Unique project identifier (UUIDv7 or UUIDv4). |
+| `tenant_id` | `UUID` | `NOT NULL, FK` | References `Tenant(id) ON DELETE CASCADE`. |
 | `name` | `VARCHAR(100)` | `NOT NULL` | Human-readable project name (1–100 chars, e.g., "AiMemorySync"). |
-| `slug` | `VARCHAR(100)` | `NOT NULL, UNIQUE` | URL-safe, lowercase slug (e.g., "aimemorysync"). Alphanumeric and hyphens only. |
+| `slug` | `VARCHAR(100)` | `NOT NULL` | URL-safe, lowercase slug (unique per tenant: `UNIQUE(tenant_id, slug)`). |
 | `description` | `TEXT` | `NULLABLE` | Optional summary of project scope and architecture (max 500 chars). |
 | `status` | `VARCHAR(20)` | `NOT NULL, DEFAULT 'ACTIVE'` | Project lifecycle state: `'ACTIVE'` or `'ARCHIVED'`. |
 | `created_at` | `TIMESTAMPTZ` | `NOT NULL, DEFAULT now()` | Record creation timestamp. Immutable. |
 | `updated_at` | `TIMESTAMPTZ` | `NOT NULL, DEFAULT now()` | Timestamp of last modification. Automatically updated. |
-
-#### Design Rationale:
-- **Slug**: Enables human-friendly URLs and CLI identifiers (`/projects/aimemorysync`) in addition to UUIDs.
-- **Future Multi-Workspace Slug Compatibility**: In the current MVP, `slug` is globally unique (`UNIQUE INDEX idx_project_slug ON project(slug)`). In future multi-workspace architectures, this constraint can seamlessly transition to a composite unique constraint `(workspace_id, slug)`, allowing different workspaces to maintain independent projects with identical slugs.
-- **Status**: Supports soft archiving so projects can be hidden without cascading destructive deletes.
-- **Future Ownership**: In future phases, a nullable `workspace_id UUID REFERENCES workspace(id)` can be added without modifying existing queries.
 
 ---
 
@@ -78,7 +84,8 @@ The `Memory` entity represents a discrete, preserved unit of engineering knowled
 | Field | Type Concept | Constraint / Nullability | Description & Validation |
 |---|---|---|---|
 | `id` | `UUID` | `PRIMARY KEY` | Unique memory identifier. |
-| `project_id` | `UUID` | `NOT NULL, FK` | References `Project(id) ON DELETE CASCADE`. |
+| `tenant_id` | `UUID` | `NOT NULL, FK` | References `Tenant(id) ON DELETE CASCADE`. Mandatory security boundary. |
+| `project_id` | `UUID` | `NULLABLE, FK` | References `Project(id) ON DELETE CASCADE`. If `NULL`, memory is tenant-level / workspace-wide. |
 | `type` | `VARCHAR(20)` | `NOT NULL` | Memory category check constraint: `'DECISION'`, `'REQUIREMENT'`, `'CONVENTION'`, `'BUG_SOLUTION'`. |
 | `title` | `VARCHAR(200)` | `NOT NULL` | Concise, searchable summary (1–200 chars). |
 | `content` | `TEXT` | `NOT NULL` | Detailed description, rationale, or instructions (1–10,000 chars). |
@@ -89,7 +96,8 @@ The `Memory` entity represents a discrete, preserved unit of engineering knowled
 | `updated_at` | `TIMESTAMPTZ` | `NOT NULL, DEFAULT now()` | Timestamp of last modification. |
 
 #### Database Constraints:
-- `fk_memory_project`: `FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE`
+- `fk_memory_tenant`: `FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE`
+- `fk_memory_project`: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
 - `chk_memory_type`: `CHECK (type IN ('DECISION', 'REQUIREMENT', 'CONVENTION', 'BUG_SOLUTION'))`
 - `chk_memory_priority`: `CHECK (priority IN ('LOW', 'NORMAL', 'HIGH', 'CRITICAL'))`
 - `chk_memory_status`: `CHECK (status IN ('ACTIVE', 'DEPRECATED', 'ARCHIVED'))`
@@ -98,19 +106,25 @@ The `Memory` entity represents a discrete, preserved unit of engineering knowled
 
 ## 4. Index Recommendations
 
-To support rapid filtering, duplicate checking, and prompt context compilation:
+To support rapid filtering, duplicate checking, and prompt context compilation across tenant and project scopes:
 
-1. **`idx_project_slug`**:
-   - `CREATE UNIQUE INDEX idx_project_slug ON project(slug);`
-   - Accelerates project resolution from URLs and CLI commands.
-2. **`idx_memory_project_status`**:
-   - `CREATE INDEX idx_memory_project_status ON memory(project_id, status);`
-   - Primary retrieval index for fetching active memories within a project.
-3. **`idx_memory_project_hash`**:
-   - `CREATE INDEX idx_memory_project_hash ON memory(project_id, content_hash);`
-   - Enables instantaneous ($O(1)$) duplicate detection during ingestion.
-4. **`idx_memory_project_type_priority`**:
-   - `CREATE INDEX idx_memory_project_type_priority ON memory(project_id, type, priority);`
+1. **`idx_memory_tenant_status`**:
+   - `CREATE INDEX idx_memory_tenant_status ON memories(tenant_id, status);`
+   - Primary retrieval index for workspace-wide and tenant context queries.
+2. **`idx_memory_tenant_project_status`**:
+   - `CREATE INDEX idx_memory_tenant_project_status ON memories(tenant_id, project_id, status);`
+   - Primary retrieval index for project context assembly within a tenant.
+3. **`idx_memory_tenant_hash`**:
+   - `CREATE INDEX idx_memory_tenant_hash ON memories(tenant_id, content_hash);`
+   - Enables fast duplicate detection across tenant-level memories.
+4. **`idx_memory_project_status`**:
+   - `CREATE INDEX idx_memory_project_status ON memories(project_id, status);`
+   - Fast retrieval of active project-specific memories.
+5. **`idx_memory_project_hash`**:
+   - `CREATE INDEX idx_memory_project_hash ON memories(project_id, content_hash);`
+   - Fast duplicate detection within a project scope.
+6. **`idx_memory_project_type_priority`**:
+   - `CREATE INDEX idx_memory_project_type_priority ON memories(project_id, type, priority);`
    - Optimizes category-specific context assembly and priority-based sorting.
 
 ---
@@ -178,14 +192,15 @@ Before hashing, the payload is normalized to eliminate trivial formatting varian
 
 ### 7.2 Ingestion Duplicate Check Flow
 ```text
-Incoming Memory Payload
+Incoming Memory Payload (tenant_id, optional project_id)
           │
           ▼
 Canonicalization & Hash Generation (SHA-256)
           │
           ▼
-Query: SELECT id, title FROM memory 
-       WHERE project_id = :project_id 
+Query: SELECT id, title FROM memories 
+       WHERE tenant_id = :tenant_id 
+         AND project_id IS NOT DISTINCT FROM :project_id 
          AND content_hash = :content_hash 
          AND status = 'ACTIVE'
           │
@@ -195,13 +210,17 @@ Match Found                    No Match
     │                               │
     ▼                               ▼
 Flag as Exact Duplicate:       Insert new Memory record
-- Update updated_at            (status = 'ACTIVE')
-- Return existing record
+- Reject with 409 Conflict     (status = 'ACTIVE')
+  or return existing record
 - Skip redundant insert
 ```
 
 ### 7.3 Scoping Rule
-**Duplicate checks are strictly project-scoped.** Two different projects can have identical rules (e.g., `"Use TypeScript"`), which must exist independently in each project's memory bank.
+**Duplicate checks are strictly scoped by tenant and target project**:
+1. **Tenant-Level Memories (`project_id = NULL`)**: Deduplication checks `{ tenant_id, project_id: null, content_hash }`.
+2. **Project Memories (`project_id = PROJECT_ID`)**: Deduplication checks `{ tenant_id, project_id, content_hash }`.
+3. **Cross-Scope Coexistence**: Identical content may coexist across different projects or between a project and the tenant-level scope without collision.
+4. **Cross-Tenant Isolation**: Two different tenants can have identical content hashes completely isolated from each other.
 
 ---
 

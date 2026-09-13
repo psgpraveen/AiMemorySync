@@ -14,7 +14,7 @@ import {
   type UpdateMemoryInput,
   type ListMemoriesFilter,
 } from "@/validations/memory.validation";
-import type { Memory, MemoryPriority } from "@prisma/client";
+import type { Memory, MemoryPriority, Prisma } from "@prisma/client";
 
 /**
  * Creates a new Memory record for a project.
@@ -43,26 +43,51 @@ export async function createMemory(
     parseResult.data;
 
   // Enforce machine key project scoping
-  if (allowedProjectId && projectId !== allowedProjectId) {
-    throw new ForbiddenError(
-      `API key is scoped exclusively to project '${allowedProjectId}' and cannot create memories in project '${projectId}'`
-    );
+  if (allowedProjectId) {
+    if (!projectId) {
+      throw new ForbiddenError(
+        `API key is scoped exclusively to project '${allowedProjectId}' and cannot create tenant-level memories`
+      );
+    }
+    if (projectId !== allowedProjectId) {
+      throw new ForbiddenError(
+        `API key is scoped exclusively to project '${allowedProjectId}' and cannot create memories in project '${projectId}'`
+      );
+    }
   }
 
-  // Verify project exists and belongs to the caller's tenant
-  const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      ...(tenantId && { tenantId }),
-    },
-  });
+  let targetTenantId: string;
 
-  if (!project) {
-    throw new NotFoundError(
-      `Project with ID '${projectId}' not found`,
-      "PROJECT_NOT_FOUND",
-      { projectId }
-    );
+  if (projectId) {
+    // Verify project exists and belongs to the caller's tenant
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        ...(tenantId && { tenantId }),
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundError(
+        `Project with ID '${projectId}' not found`,
+        "PROJECT_NOT_FOUND",
+        { projectId }
+      );
+    }
+    targetTenantId = project.tenantId;
+  } else {
+    // Tenant-level memory: resolve tenant
+    targetTenantId = tenantId ?? "00000000-0000-0000-0000-000000000001";
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: targetTenantId },
+    });
+    if (!tenant) {
+      throw new NotFoundError(
+        `Tenant with ID '${targetTenantId}' not found`,
+        "TENANT_NOT_FOUND",
+        { tenantId: targetTenantId }
+      );
+    }
   }
 
   const normalizedTitle = normalizeTitle(title);
@@ -73,21 +98,25 @@ export async function createMemory(
     normalizedContent
   );
 
-  // Check for duplicate within the same project
+  // Check for duplicate within the same scope (tenant or project)
   const existingDuplicate = await prisma.memory.findFirst({
     where: {
-      projectId,
+      tenantId: targetTenantId,
+      projectId: projectId ?? null,
       contentHash,
     },
   });
 
   if (existingDuplicate) {
     throw new ConflictError(
-      "Duplicate memory with identical type, title, and content already exists in this project",
+      projectId
+        ? "Duplicate memory with identical type, title, and content already exists in this project"
+        : "Duplicate memory with identical type, title, and content already exists in tenant scope",
       "MEMORY_DUPLICATE",
       {
         existingMemoryId: existingDuplicate.id,
-        projectId,
+        projectId: projectId ?? null,
+        tenantId: targetTenantId,
         contentHash,
         title: existingDuplicate.title,
       }
@@ -96,7 +125,8 @@ export async function createMemory(
 
   return prisma.memory.create({
     data: {
-      projectId,
+      tenantId: targetTenantId,
+      projectId: projectId ?? null,
       type,
       title: normalizedTitle,
       content: normalizedContent,
@@ -125,13 +155,10 @@ export async function getMemoryById(
 
   const memory = await prisma.memory.findUnique({
     where: { id },
-    include: {
-      project: true,
-    },
   });
 
-  // Return 404 if memory doesn't exist OR if its parent project belongs to another tenant (IDOR defense)
-  if (!memory || (tenantId && memory.project.tenantId !== tenantId)) {
+  // Return 404 if memory doesn't exist OR if its tenantId does not match (IDOR defense)
+  if (!memory || (tenantId && memory.tenantId !== tenantId)) {
     throw new NotFoundError(
       `Memory with ID '${id}' not found`,
       "MEMORY_NOT_FOUND",
@@ -142,7 +169,9 @@ export async function getMemoryById(
   // If machine key is project-scoped, enforce project match (403)
   if (allowedProjectId && memory.projectId !== allowedProjectId) {
     throw new ForbiddenError(
-      `API key is scoped exclusively to project '${allowedProjectId}' and cannot access memory in project '${memory.projectId}'`
+      memory.projectId === null
+        ? `API key is scoped exclusively to project '${allowedProjectId}' and cannot access tenant-level memories`
+        : `API key is scoped exclusively to project '${allowedProjectId}' and cannot access memory in project '${memory.projectId}'`
     );
   }
 
@@ -160,11 +189,11 @@ const PRIORITY_WEIGHT: Record<MemoryPriority, number> = {
 };
 
 /**
- * Lists memories for a project with optional filters (status, type, priority).
- * Enforces tenant ownership of the parent project and project-scoped key constraints.
+ * Lists memories with optional filters (scope, projectId, status, type, priority).
+ * Enforces tenant ownership and project-scoped key constraints.
  * Guaranteed ordering: CRITICAL -> HIGH -> NORMAL -> LOW, then updatedAt DESC.
  */
-export async function listMemoriesByProject(
+export async function listMemories(
   filter: ListMemoriesFilter,
   tenantId?: string,
   allowedProjectId?: string
@@ -177,38 +206,69 @@ export async function listMemoriesByProject(
     );
   }
 
-  const { projectId, type, priority, status } = parseResult.data;
+  const { projectId, scope, type, priority, status } = parseResult.data;
 
   // Enforce project-scoped key check
-  if (allowedProjectId && projectId !== allowedProjectId) {
-    throw new ForbiddenError(
-      `API key is scoped exclusively to project '${allowedProjectId}' and cannot access project '${projectId}'`
-    );
+  if (allowedProjectId) {
+    if (scope === "tenant") {
+      throw new ForbiddenError(
+        `API key is scoped exclusively to project '${allowedProjectId}' and cannot access tenant-level memories`
+      );
+    }
+    if (projectId && projectId !== allowedProjectId) {
+      throw new ForbiddenError(
+        `API key is scoped exclusively to project '${allowedProjectId}' and cannot access project '${projectId}'`
+      );
+    }
   }
 
-  // Project existence check within tenant
-  const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      ...(tenantId && { tenantId }),
-    },
-  });
+  const resolvedTenantId = tenantId ?? "00000000-0000-0000-0000-000000000001";
 
-  if (!project) {
-    throw new NotFoundError(
-      `Project with ID '${projectId}' not found`,
-      "PROJECT_NOT_FOUND",
-      { projectId }
-    );
+  // If specific project is requested, verify it exists within tenant
+  if (projectId) {
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        tenantId: resolvedTenantId,
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundError(
+        `Project with ID '${projectId}' not found`,
+        "PROJECT_NOT_FOUND",
+        { projectId }
+      );
+    }
+  }
+
+  // Build where query
+  const where: Prisma.MemoryWhereInput = {
+    tenantId: resolvedTenantId,
+    ...(status !== undefined && { status }),
+    ...(type !== undefined && { type }),
+    ...(priority !== undefined && { priority }),
+  };
+
+  if (allowedProjectId) {
+    where.projectId = allowedProjectId;
+  } else if (projectId) {
+    if (scope === "all") {
+      where.OR = [
+        { projectId },
+        { projectId: null },
+      ];
+    } else {
+      where.projectId = projectId;
+    }
+  } else if (scope === "tenant") {
+    where.projectId = null;
+  } else if (scope === "project") {
+    where.projectId = { not: null };
   }
 
   const memories = await prisma.memory.findMany({
-    where: {
-      projectId,
-      ...(status !== undefined && { status }),
-      ...(type !== undefined && { type }),
-      ...(priority !== undefined && { priority }),
-    },
+    where,
     orderBy: [{ priority: "desc" }, { updatedAt: "desc" }],
   });
 
@@ -219,6 +279,17 @@ export async function listMemoriesByProject(
     if (pDiff !== 0) return pDiff;
     return b.updatedAt.getTime() - a.updatedAt.getTime();
   });
+}
+
+/**
+ * Lists memories for a project (backwards-compatible alias for listMemories).
+ */
+export async function listMemoriesByProject(
+  filter: ListMemoriesFilter,
+  tenantId?: string,
+  allowedProjectId?: string
+): Promise<Memory[]> {
+  return listMemories(filter, tenantId, allowedProjectId);
 }
 
 /**
@@ -267,9 +338,10 @@ export async function updateMemory(
   ) {
     newContentHash = generateMemoryHash(newType, newTitle, newContent);
 
-    // Check duplicate in same project excluding this record
+    // Check duplicate in same scope excluding this record
     const duplicate = await prisma.memory.findFirst({
       where: {
+        tenantId: existing.tenantId,
         projectId: existing.projectId,
         contentHash: newContentHash,
         NOT: { id },
@@ -278,11 +350,14 @@ export async function updateMemory(
 
     if (duplicate) {
       throw new ConflictError(
-        "Duplicate memory with identical type, title, and content already exists in this project",
+        existing.projectId
+          ? "Duplicate memory with identical type, title, and content already exists in this project"
+          : "Duplicate memory with identical type, title, and content already exists in tenant scope",
         "MEMORY_DUPLICATE",
         {
           existingMemoryId: duplicate.id,
           projectId: existing.projectId,
+          tenantId: existing.tenantId,
           contentHash: newContentHash,
           title: duplicate.title,
         }

@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import type { Project } from "@prisma/client";
-import { getProjects, ApiError } from "@/lib/api-client";
+import { useEffect, useState } from "react";
+import { useProjects } from "@/contexts";
 import { ProjectCard } from "./project-card";
 import { ProjectForm } from "./project-form";
 import { Modal } from "@/components/shared/modal";
@@ -11,58 +10,15 @@ import { ErrorState } from "@/components/shared/error-state";
 import { SkeletonCard } from "@/components/shared/loading-state";
 
 export function ProjectList() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<{ message: string; code?: string } | null>(
-    null
-  );
+  const { projects, loading, error, fetchProjects } = useProjects();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-  const fetchActiveProjects = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getProjects("ACTIVE");
-      setProjects(data);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError({ message: err.message, code: err.code });
-      } else {
-        setError({ message: "Failed to load projects. Please try again." });
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    let isMounted = true;
-    getProjects("ACTIVE")
-      .then((data) => {
-        if (isMounted) {
-          setProjects(data);
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (isMounted) {
-          if (err instanceof ApiError) {
-            setError({ message: err.message, code: err.code });
-          } else {
-            setError({ message: "Failed to load projects. Please try again." });
-          }
-          setLoading(false);
-        }
-      });
+    void fetchProjects("ACTIVE");
+  }, [fetchProjects]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  function handleProjectCreated(newProject: Project) {
+  function handleProjectCreated() {
     setIsCreateOpen(false);
-    setProjects((prev) => [newProject, ...prev]);
   }
 
   return (
@@ -104,9 +60,8 @@ export function ProjectList() {
       ) : error ? (
         <ErrorState
           title="Failed to load projects"
-          message={error.message}
-          code={error.code}
-          onRetry={fetchActiveProjects}
+          message={error}
+          onRetry={() => fetchProjects("ACTIVE")}
         />
       ) : projects.length === 0 ? (
         <EmptyState
