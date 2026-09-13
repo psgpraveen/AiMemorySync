@@ -26,9 +26,13 @@ async function acquireEphemeralKey(namePrefix = "MCP Test Runner") {
     const last4 = rawKey.slice(-4);
     const name = `${namePrefix} - ${Date.now()}`;
 
+    const existingProject = await prisma.project.findFirst({ where: { slug: "aimemorysync" } });
+    const firstTenant = await prisma.tenant.findFirst({ orderBy: { createdAt: "asc" } });
+    const tenantId = existingProject?.tenantId || firstTenant?.id || "00000000-0000-0000-0000-000000000001";
+
     const created = await prisma.apiKey.create({
       data: {
-        tenantId: "00000000-0000-0000-0000-000000000001",
+        tenantId,
         name,
         keyHash,
         prefix: "aimem_live_",
