@@ -15,34 +15,43 @@ async function acquireEphemeralKey(namePrefix = "MCP Test Runner") {
     };
   }
 
-  const randomEntropy = crypto.randomBytes(24).toString("base64url");
-  const rawKey = `aimem_live_${randomEntropy}`;
-  const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
-  const last4 = rawKey.slice(-4);
-  const name = `${namePrefix} - ${Date.now()}`;
+  if (!process.env.DATABASE_URL) {
+    return null;
+  }
 
-  const created = await prisma.apiKey.create({
-    data: {
-      tenantId: "00000000-0000-0000-0000-000000000001",
-      name,
-      keyHash,
-      prefix: "aimem_live_",
-      last4,
-      scopes: ["read", "write", "admin"],
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-    },
-  });
+  try {
+    const randomEntropy = crypto.randomBytes(24).toString("base64url");
+    const rawKey = `aimem_live_${randomEntropy}`;
+    const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
+    const last4 = rawKey.slice(-4);
+    const name = `${namePrefix} - ${Date.now()}`;
 
-  return {
-    rawKey,
-    cleanup: async () => {
-      try {
-        await prisma.apiKey.delete({ where: { id: created.id } });
-      } catch {
-        // Ignore
-      }
-    },
-  };
+    const created = await prisma.apiKey.create({
+      data: {
+        tenantId: "00000000-0000-0000-0000-000000000001",
+        name,
+        keyHash,
+        prefix: "aimem_live_",
+        last4,
+        scopes: ["read", "write", "admin"],
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      },
+    });
+
+    return {
+      rawKey,
+      cleanup: async () => {
+        try {
+          await prisma.apiKey.delete({ where: { id: created.id } });
+        } catch {
+          // Ignore
+        }
+      },
+    };
+  } catch (err: unknown) {
+    console.warn("  \x1b[33m⚠\x1b[0m Database unavailable for ephemeral key:", err instanceof Error ? err.message : String(err));
+    return null;
+  }
 }
 
 export async function runIntegrationTests(): Promise<{ passed: number; failed: number }> {
@@ -63,6 +72,10 @@ export async function runIntegrationTests(): Promise<{ passed: number; failed: n
   console.log("\n\x1b[1m4. Live Backend MCP Integration Tests (http://localhost:3000):\x1b[0m");
 
   const sessionCreds = await acquireEphemeralKey();
+  if (!sessionCreds) {
+    console.log("  \x1b[33m⚠\x1b[0m Skipping live backend MCP integration tests (no live database or AIMEMORY_TEST_API_KEY).");
+    return { passed: 0, failed: 0 };
+  }
   const createdMemoryIds: string[] = [];
   let resolvedProjectId = "";
 
