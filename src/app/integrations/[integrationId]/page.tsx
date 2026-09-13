@@ -85,7 +85,7 @@ export default async function IntegrationDetailPage({ params }: PageProps) {
               <ul className="mt-3 grid gap-2 sm:grid-cols-2 text-xs text-zinc-700 dark:text-zinc-300">
                 {integration.features.map((feat, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <span className="text-emerald-500 font-bold mt-0.5">&check;</span>
+                    <span className="text-emerald-500 font-bold mt-0.5">✓</span>
                     <span>{feat}</span>
                   </li>
                 ))}

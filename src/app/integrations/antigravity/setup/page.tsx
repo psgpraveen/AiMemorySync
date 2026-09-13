@@ -259,14 +259,14 @@ export default function AntigravitySetupWizardPage() {
               <div className="space-y-2.5 rounded-lg border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-950/40 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-2 text-zinc-800 dark:text-zinc-200">
-                    <span className="text-emerald-500 font-bold">&check;</span>
+                    <span className="text-emerald-500 font-bold">✓</span>
                     Node.js 18+ runtime installed
                   </span>
                   <code className="text-[11px] text-zinc-500">node -v</code>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-2 text-zinc-800 dark:text-zinc-200">
-                    <span className="text-emerald-500 font-bold">&check;</span>
+                    <span className="text-emerald-500 font-bold">✓</span>
                     Antigravity workspace active
                   </span>
                   <span className="text-[11px] text-zinc-500">.agents/ directory</span>
@@ -274,9 +274,9 @@ export default function AntigravitySetupWizardPage() {
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-2 text-zinc-800 dark:text-zinc-200">
                     {isKeyValid ? (
-                      <span className="text-emerald-500 font-bold">&check;</span>
+                      <span className="text-emerald-500 font-bold">✓</span>
                     ) : (
-                      <span className="text-amber-500 font-bold">&bull;</span>
+                      <span className="text-amber-500 font-bold">•</span>
                     )}
                     AiMemorySync API Key configured
                   </span>
@@ -287,14 +287,15 @@ export default function AntigravitySetupWizardPage() {
               </div>
 
               {!isKeyValid && (
-                <div className="flex items-center justify-between rounded border border-amber-200 bg-amber-50 p-3 text-xs dark:border-amber-900/50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300">
-                  <span>You need an API key to complete setup.</span>
-                  <Link
-                    href="/login?redirect=/integrations/antigravity/setup"
-                    className="rounded bg-amber-600 px-3 py-1 font-medium text-white hover:bg-amber-700 transition"
+                <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs dark:border-amber-900/50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300">
+                  <span>No integration API key is active in this browser. You can generate a dedicated key in the next step.</span>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(2)}
+                    className="rounded bg-amber-600 px-3 py-1 font-medium text-white hover:bg-amber-700 transition cursor-pointer"
                   >
-                    Sign In with Key
-                  </Link>
+                    Continue to Step 2 &rarr;
+                  </button>
                 </div>
               )}
             </div>

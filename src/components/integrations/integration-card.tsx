@@ -64,7 +64,7 @@ export function IntegrationCard({ integration, isConnected }: IntegrationCardPro
         <ul className="mt-4 space-y-1.5 text-[11px] text-slate-600">
           {integration.features.slice(0, 3).map((feat, i) => (
             <li key={i} className="flex items-center gap-1.5">
-              <span className="text-emerald-600 font-bold">&check;</span>
+              <span className="text-emerald-600 font-bold">✓</span>
               <span className="truncate">{feat}</span>
             </li>
           ))}
