@@ -7,7 +7,7 @@
 ### Universal, Deterministic AI Memory & Context Synchronization Engine
 *Architected, Designed & Developed by **[PSG Praveen](https://github.com/psgpraveen)** (`@psgpraveen`)*
 
-[![CI Quality Gates](https://github.com/psgpraveen/AiMemorySync/actions/workflows/ci.yml/badge.svg)](https://github.com/psgpraveen/AiMemorySync/actions)
+[![CI/CD Pipeline](https://github.com/psgpraveen/AiMemorySync/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/psgpraveen/AiMemorySync/actions)
 [![Extension Release](https://github.com/psgpraveen/AiMemorySync/actions/workflows/extension-release.yml/badge.svg)](https://github.com/psgpraveen/AiMemorySync/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Node: >=18.0.0](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)

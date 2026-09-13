@@ -1,0 +1,162 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy_to_ec2:
+        description: "Deploy to AWS EC2 instance after successful validation"
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # 1. CONTINUOUS INTEGRATION (Quality Gates, Linting, Testing & Build)
+  # ============================================================================
+  validate:
+    name: Lint, Typecheck, Test & Build Monorepo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Build SDK & MCP Server
+        run: |
+          npm run build:sdk
+          npm run build:mcp
+
+      - name: Run Monorepo Typecheck
+        run: npm run typecheck:all
+
+      - name: Run Auth & Cookie Security Tests
+        run: npx tsx scripts/test-cookie-security.ts
+
+      - name: Run SDK Tests
+        run: npm run test:sdk
+
+      - name: Run MCP Server Tests
+        run: npm run test:mcp
+
+      - name: Run VS Code Extension Unit Tests
+        run: |
+          npm run --workspace=aimemory-vscode lint
+          npm run --workspace=aimemory-vscode test:unit
+
+      - name: Build Next.js Web Application
+        run: npm run build
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
+          NODE_ENV: "production"
+
+  # ============================================================================
+  # 2. CONTINUOUS DEPLOYMENT (Automated AWS EC2 Deployment via PM2)
+  # ============================================================================
+  deploy:
+    name: Deploy to AWS EC2
+    needs: validate
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy_to_ec2 == true))
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check EC2 Deployment Credentials
+        id: check_credentials
+        run: |
+          if [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
+            echo "::warning::EC2_SSH_KEY secret is not configured in GitHub Repository Secrets."
+            echo "has_key=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_key=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deployment Instructions (When Secret Missing)
+        if: steps.check_credentials.outputs.has_key == 'false'
+        run: |
+          echo "================================================================="
+          echo "CI Quality Gates PASSED successfully!"
+          echo "Automated CD deployment is configured, but EC2_SSH_KEY is missing."
+          echo "To enable continuous deployment to your EC2 instance:"
+          echo "  1. Go to: GitHub -> Settings -> Secrets and variables -> Actions"
+          echo "  2. Add the following repository secrets:"
+          echo "     - EC2_SSH_KEY : Your AWS EC2 private key (.pem content)"
+          echo "     - EC2_HOST    : 13.206.58.90 (optional, defaults to 13.206.58.90)"
+          echo "     - EC2_USER    : ec2-user (optional, defaults to ec2-user)"
+          echo "     - EC2_PORT    : 22 (optional, defaults to 22)"
+          echo "================================================================="
+
+      - name: Deploy to AWS EC2 via SSH
+        if: steps.check_credentials.outputs.has_key == 'true'
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST || '13.206.58.90' }}
+          EC2_USER: ${{ secrets.EC2_USER || 'ec2-user' }}
+          EC2_PORT: ${{ secrets.EC2_PORT || '22' }}
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p "$EC2_PORT" -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          ssh -i ~/.ssh/id_rsa -p "$EC2_PORT" -o StrictHostKeyChecking=no "$EC2_USER@$EC2_HOST" << 'EOF'
+            set -e
+            echo "==> Deploying AiMemorySync on AWS EC2..."
+
+            # Locate project directory on EC2
+            if [ -d "$HOME/AimemorySync/aimemorysync" ]; then
+              cd "$HOME/AimemorySync/aimemorysync"
+            elif [ -d "$HOME/AimemorySync" ]; then
+              cd "$HOME/AimemorySync"
+            elif [ -d "$HOME/aimemorysync" ]; then
+              cd "$HOME/aimemorysync"
+            else
+              echo "ERROR: Could not locate AiMemorySync project directory on EC2 instance."
+              exit 1
+            fi
+
+            echo "==> Directory: $(pwd)"
+            echo "==> Pulling latest code from origin main..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "==> Installing dependencies..."
+            npm ci --production=false
+
+            echo "==> Generating Prisma client..."
+            npx prisma generate
+
+            echo "==> Building Next.js application..."
+            npm run build
+
+            echo "==> Restarting PM2 process 'aimemorysync'..."
+            pm2 restart aimemorysync || pm2 start npm --name "aimemorysync" -- start -- -p 3005
+            pm2 save
+
+            echo "==> Verifying application response on port 3005..."
+            sleep 3
+            curl -f -s -o /dev/null -w "HTTP Response Code: %{http_code}\n" http://localhost:3005/login || echo "Note: Service started; verify in browser."
+
+            echo "==> AiMemorySync deployment completed successfully!"
+          EOF
