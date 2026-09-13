@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { CodeBlock } from "@/components/integrations/code-block";
+import { useAuth } from "@/contexts";
 import {
   API_ENDPOINTS,
   getApiKey,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/api-client";
 
 export default function AntigravitySetupWizardPage() {
+  const { session } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
 
   // Step 1: Account
@@ -273,31 +275,61 @@ export default function AntigravitySetupWizardPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-2 text-zinc-800 dark:text-zinc-200">
-                    {isKeyValid ? (
+                    {session ? (
                       <span className="text-emerald-500 font-bold">✓</span>
                     ) : (
                       <span className="text-amber-500 font-bold">•</span>
                     )}
-                    AiMemorySync API Key configured
+                    AiMemorySync Account
+                  </span>
+                  <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                    {session?.user ? `Signed in (${session.user.name || session.user.email})` : "Not Signed In"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-zinc-800 dark:text-zinc-200">
+                    {isKeyValid ? (
+                      <span className="text-emerald-500 font-bold">✓</span>
+                    ) : (
+                      <span className="text-slate-400 font-bold">•</span>
+                    )}
+                    Antigravity Machine API Key
                   </span>
                   <span className="text-[11px] font-mono text-zinc-500">
-                    {isKeyValid ? "Active & Verified" : "Not Configured"}
+                    {isKeyValid ? "Configured" : "Will generate in Step 2"}
                   </span>
                 </div>
               </div>
 
-              {!isKeyValid && (
-                <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs dark:border-amber-900/50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300">
-                  <span>No integration API key is active in this browser. You can generate a dedicated key in the next step.</span>
+              {session ? (
+                <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/80 p-3.5 text-xs text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">
+                  <div className="space-y-0.5">
+                    <p className="font-semibold flex items-center gap-1.5">
+                      <span>✓ Account Verified</span>
+                    </p>
+                    <p className="text-emerald-800/90 dark:text-emerald-400">
+                      Logged in as <strong>{session.user.email}</strong>. Click below to generate your dedicated machine API key for Antigravity.
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setCurrentStep(2)}
-                    className="rounded bg-amber-600 px-3 py-1 font-medium text-white hover:bg-amber-700 transition cursor-pointer"
+                    className="rounded-lg bg-emerald-600 px-3.5 py-1.5 font-medium text-white hover:bg-emerald-700 transition cursor-pointer shadow-xs whitespace-nowrap ml-4"
                   >
                     Continue to Step 2 &rarr;
                   </button>
                 </div>
-              )}
+              ) : !isKeyValid ? (
+                <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-xs dark:border-amber-900/50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300">
+                  <span>Sign in to your account to generate an integration API key.</span>
+                  <Link
+                    href="/login?redirect=/integrations/antigravity/setup"
+                    className="rounded bg-amber-600 px-3 py-1 font-medium text-white hover:bg-amber-700 transition"
+                  >
+                    Sign In
+                  </Link>
+                </div>
+              ) : null}
             </div>
           )}
 
