@@ -40,6 +40,9 @@ jobs:
 
       - name: Generate Prisma Client
         run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres' }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL || 'postgresql://postgres:postgres@localhost:5432/postgres' }}
 
       - name: Run ESLint
         run: npm run lint
@@ -69,7 +72,8 @@ jobs:
       - name: Build Next.js Web Application
         run: npm run build
         env:
-          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres' }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL || 'postgresql://postgres:postgres@localhost:5432/postgres' }}
           NODE_ENV: "production"
 
   # ============================================================================
@@ -98,13 +102,15 @@ jobs:
           echo "================================================================="
           echo "CI Quality Gates PASSED successfully!"
           echo "Automated CD deployment is configured, but EC2_SSH_KEY is missing."
-          echo "To enable continuous deployment to your EC2 instance:"
+          echo "To enable continuous deployment to your EC2 instance and Supabase DB:"
           echo "  1. Go to: GitHub -> Settings -> Secrets and variables -> Actions"
           echo "  2. Add the following repository secrets:"
           echo "     - EC2_SSH_KEY : Your AWS EC2 private key (.pem content)"
           echo "     - EC2_HOST    : 13.206.58.90 (optional, defaults to 13.206.58.90)"
           echo "     - EC2_USER    : ec2-user (optional, defaults to ec2-user)"
           echo "     - EC2_PORT    : 22 (optional, defaults to 22)"
+          echo "     - DATABASE_URL: Supabase pooler URL (optional for CI build validation)"
+          echo "     - DIRECT_URL  : Supabase direct connection URL (optional for CI build validation)"
           echo "================================================================="
 
       - name: Deploy to AWS EC2 via SSH
@@ -146,6 +152,9 @@ jobs:
 
             echo "==> Generating Prisma client..."
             npx prisma generate
+
+            echo "==> Applying database migrations on Supabase PostgreSQL..."
+            npx prisma migrate deploy
 
             echo "==> Building Next.js application..."
             npm run build
